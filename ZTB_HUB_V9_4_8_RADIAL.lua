@@ -1,5 +1,5 @@
 -- ZTB HUB — Meme Sea Edition
--- V9.6.0 | COMBAT HITBOX + RADIAL CENTRAL
+-- V9.4.7 FIXED | SKYBOX TESTER + RADIAL CENTRAL
 -- Hitbox visual segura + God Orb sin anclar el personaje
 
 local TW = game:GetService("TweenService")
@@ -395,115 +395,56 @@ function TLG.GetStats(plr)
   return s
 end
 
--- ============================================================
--- HITBOX (nueva, V9.6) — vive en la pestaña COMBAT
--- Modo SEGURO (por defecto): una pieza propia por jugador dentro de una carpeta
---   en workspace. NO toca el personaje de nadie (ni tamaño, ni colisión, ni hijos).
--- Modo REAL: agranda el HumanoidRootPart de los demás (solo en tu cliente).
---   Sin colisión; se restaura al apagarlo, al morir el jugador o al salir de rango.
--- ============================================================
-local HB = {
-  On = false, Real = false, Sz = 15, Tr = 0.7, Range = 300,
-  Conn = nil, Folder = nil, Parts = {}, Orig = {},
-}
-
-local function hbFree(p)
-  local part = HB.Parts[p]
-  HB.Parts[p] = nil
-  if part then pcall(function() part:Destroy() end) end
-  local o = HB.Orig[p]
-  HB.Orig[p] = nil
-  if o and o.part and o.part.Parent then
-    pcall(function()
-      o.part.Size = o.Size
-      o.part.Transparency = o.Transparency
-      o.part.CanCollide = o.CanCollide
-      o.part.Color = o.Color
-    end)
-  end
+-- HITBOX MANUAL: solo contorno visual; no redimensiona personajes.
+local HB = {On = false, Sz = 10, Tr = 0.35, Conn = nil, Original = {}}
+local function applyHB(p)
+  if p == TLG.LP then return end
+  local ch = p.Character; if not ch then return end
+  local h = ch:FindFirstChild("HumanoidRootPart")
+  if not h then return end
+  local old = h:FindFirstChild("TLG_ManualHitboxVisual")
+  if old then old:Destroy() end
+  local box = Instance.new("BoxHandleAdornment")
+  box.Name = "TLG_ManualHitboxVisual"
+  box.Adornee = h
+  -- Visual-only adornment: never resize the real character part or its collisions.
+  local sz = math.max(1, tonumber(HB.Sz) or 10)
+  box.Size = Vector3.new(sz, sz, sz)
+  box.Transparency = math.clamp(HB.Tr, 0, 1)
+  box.AlwaysOnTop = true
+  box.ZIndex = 4
+  box.Color3 = TLG.A()
+  box.Parent = h
 end
-
-local function hbClear()
-  local list = {}
-  for p in pairs(HB.Parts) do list[#list + 1] = p end
-  for p in pairs(HB.Orig) do list[#list + 1] = p end
-  for _, p in ipairs(list) do hbFree(p) end
-  HB.Parts, HB.Orig = {}, {}
-end
-
-local function hbApply(p, mh)
-  local ch = p.Character
-  local h = ch and ch:FindFirstChild("HumanoidRootPart")
-  local hu = ch and ch:FindFirstChildOfClass("Humanoid")
-  if not (h and hu and hu.Health > 0) or (h.Position - mh.Position).Magnitude > HB.Range then
-    hbFree(p); return
-  end
-  local sz = math.clamp(HB.Sz, 1, 50)
-  local size = Vector3.new(sz, sz, sz)
-  if HB.Real then
-    if HB.Parts[p] then pcall(function() HB.Parts[p]:Destroy() end); HB.Parts[p] = nil end
-    local o = HB.Orig[p]
-    if o and o.part ~= h then hbFree(p); o = nil end -- el personaje se regeneró
-    if not o then
-      HB.Orig[p] = {part = h, Size = h.Size, Transparency = h.Transparency,
-        CanCollide = h.CanCollide, Color = h.Color}
-    end
-    if h.Size ~= size then h.Size = size end
-    h.CanCollide = false
-    h.Transparency = HB.Tr
-    h.Color = TLG.A()
-  else
-    if HB.Orig[p] then hbFree(p) end
-    local part = HB.Parts[p]
-    if not part or not part.Parent then
-      part = Instance.new("Part")
-      part.Name = "H_" .. p.UserId
-      part.Anchored = true
-      part.CanCollide = false
-      part.CanTouch = false
-      part.CanQuery = false
-      part.CastShadow = false
-      part.Locked = true
-      part.Material = Enum.Material.SmoothPlastic
-      part.Parent = HB.Folder
-      HB.Parts[p] = part
-    end
-    part.Size = size
-    part.Transparency = HB.Tr
-    part.Color = TLG.A()
-    part.CFrame = h.CFrame
-  end
-end
-
 function TLG.HBStart()
   if HB.Conn then return end
   HB.On = true
-  HB.Folder = Instance.new("Folder")
-  HB.Folder.Name = "TLG_Hitboxes"
-  HB.Folder.Parent = workspace
-  HB.Conn = RS.RenderStepped:Connect(function()
+  for _, p in ipairs(PLR:GetPlayers()) do
+    if p ~= TLG.LP then pcall(applyHB, p) end
+  end
+  HB.Conn = RS.Heartbeat:Connect(function()
     if not HB.On then return end
-    local mc = TLG.LP.Character
-    local mh = mc and mc:FindFirstChild("HumanoidRootPart")
-    if not mh then return end
     for _, p in ipairs(PLR:GetPlayers()) do
-      if p ~= TLG.LP then pcall(hbApply, p, mh) end
+      if p ~= TLG.LP then
+        local ch = p.Character
+        local root = ch and ch:FindFirstChild("HumanoidRootPart")
+        if root and not root:FindFirstChild("TLG_ManualHitboxVisual") then
+          pcall(applyHB, p)
+        end
+      end
     end
-    for p in pairs(HB.Parts) do if not p.Parent then hbFree(p) end end
-    for p in pairs(HB.Orig) do if not p.Parent then hbFree(p) end end
   end)
 end
-
 function TLG.HBStop()
   HB.On = false
   if HB.Conn then pcall(function() HB.Conn:Disconnect() end); HB.Conn = nil end
-  hbClear()
-  if HB.Folder then pcall(function() HB.Folder:Destroy() end); HB.Folder = nil end
-end
-
-function TLG.HBSetReal(v)
-  HB.Real = v and true or false
-  hbClear() -- el siguiente frame reaplica en el modo elegido
+  for _, p in ipairs(PLR:GetPlayers()) do
+    local ch = p.Character
+    local root = ch and ch:FindFirstChild("HumanoidRootPart")
+    local visual = root and root:FindFirstChild("TLG_ManualHitboxVisual")
+    if visual then pcall(function() visual:Destroy() end) end
+  end
+  HB.Original = {}
 end
 
 -- GOD ORB
@@ -2161,12 +2102,9 @@ end
 
 -- COMBAT TAB
 do
-  Sec(PCb, "🎯 HITBOX", "🎯")
+  Sec(PCb, "🔵 HITBOX MANUAL", "🔵")
   Tog(PCb, "Activar Hitbox", false, function(v)
     if v then TLG.HBStart() else TLG.HBStop() end
-  end)
-  Tog(PCb, "Modo real (agranda el cuerpo)", false, function(v)
-    TLG.HBSetReal(v)
   end)
   local function addArrowAdjust(labelText, initial, minValue, maxValue, step, formatter, callback)
     local value = initial
@@ -2220,13 +2158,36 @@ do
     arrow("▶", 0.92, 1)
     refresh()
   end
-  addArrowAdjust("Tamaño", HB.Sz, 1, 50, 1, function(v) return tostring(v) end,
-    function(v) HB.Sz = math.clamp(v, 1, 50) end)
-  addArrowAdjust("Transparencia", 70, 0, 100, 5, function(v) return tostring(v) .. "%" end,
-    function(v) HB.Tr = math.clamp(v, 0, 100) / 100 end)
-  addArrowAdjust("Rango (studs)", HB.Range, 50, 2000, 50, function(v) return tostring(v) end,
-    function(v) HB.Range = math.clamp(v, 50, 2000) end)
-  Lbl(PCb, "Seguro: pieza aparte, no toca a nadie. Real: agranda el cuerpo en tu cliente (solo sirve si el juego detecta golpes en tu lado).", C.Gr)
+  local HB_PRESETS = {10, 50, 9999}
+  local HB_PRESET_INDEX = 1
+
+  local function refreshHBVisuals()
+    for _, p in ipairs(PLR:GetPlayers()) do
+      if p ~= TLG.LP then
+        local ch = p.Character
+        local root = ch and ch:FindFirstChild("HumanoidRootPart")
+        local visual = root and root:FindFirstChild("TLG_ManualHitboxVisual")
+        if visual then pcall(function() visual:Destroy() end) end
+        if HB.On then pcall(applyHB, p) end
+      end
+    end
+  end
+
+  addArrowAdjust("Tamaño hitbox", HB_PRESET_INDEX - 1, 0, 2, 1,
+    function(v) return tostring(HB_PRESETS[math.clamp(v, 0, 2) + 1]) end,
+    function(v)
+      HB_PRESET_INDEX = math.clamp(math.floor(v), 0, 2) + 1
+      HB.Sz = HB_PRESETS[HB_PRESET_INDEX]
+      refreshHBVisuals()
+    end)
+  addArrowAdjust("Transparencia", 35, 0, 100, 5,
+    function(v) return tostring(v) .. "%" end,
+    function(v)
+      HB.Tr = math.clamp(v, 0, 100) / 100
+      refreshHBVisuals()
+    end)
+  Lbl(PCb, "Tamaños disponibles: 10, 50 y 9999. Usa ◀ ▶ para cambiar.", C.Gr)
+  Lbl(PCb, "La hitbox es solo visual: no modifica colisiones ni congela jugadores.", C.Cyan)
 
   Sec(PCb, "📷 CAMERA FOV", "📷")
 
@@ -2749,7 +2710,7 @@ do
     function(v) TLG.FugaSetHeight(v) end)
 
   Sec(PTo, "🌀 ORBITAL MAP", "🌀")
-  Lbl(PTo, "Movimiento estable: no fuerza el giro de la cámara.", C.Gr)
+  Lbl(PTo, "Movimiento estable: no fuerza el giro del aimbot.", C.Gr)
 
   Tog(PTo, "Orbital Mapa", false, function(v)
     if v then TLG.OrbitalMapStart() else TLG.OrbitalMapStop() end
