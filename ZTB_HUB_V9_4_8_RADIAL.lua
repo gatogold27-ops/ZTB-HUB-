@@ -1,6 +1,5 @@
--- ZTB HUB — MODERN HORIZONTAL EDITION
--- UI rediseñada: pestañas horizontales tipo pill (icono + texto)
--- Basada en el script original ZTB HUB — Meme Sea Edition
+-- ZTB HUB — Meme Sea Edition
+-- Ghost Hitbox + Fly Boost + FABs visibles
 
 local TW = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
@@ -1586,8 +1585,7 @@ end)
 makeDrag(TB)
 
 local TabBar = Instance.new("Frame", W)
-TabBar.Name = "ZTB_ModernHorizontalTabs"
-TabBar.Size = UDim2.new(1,0,0,46)
+TabBar.Size = UDim2.new(1,0,0,38)
 TabBar.Position = UDim2.new(0,0,0,54)
 TabBar.BackgroundColor3 = C.BG2
 TabBar.BackgroundTransparency = 0.3
@@ -1595,12 +1593,12 @@ TabBar.BorderSizePixel = 0
 TabBar.ZIndex = 4
 
 local TScr = Instance.new("ScrollingFrame", TabBar)
-TScr.Size = UDim2.new(1,-16,1,0)
-TScr.Position = UDim2.new(0,8,0,0)
+TScr.Size = UDim2.new(1,-10,1,0)
+TScr.Position = UDim2.new(0,5,0,0)
 TScr.BackgroundTransparency = 1
 TScr.BorderSizePixel = 0
-TScr.ScrollBarThickness = 2
-TScr.ScrollBarImageTransparency = 0.7
+TScr.ScrollBarThickness = 0
+TScr.ScrollBarImageTransparency = 1
 TScr.CanvasSize = UDim2.new(0,0,0,0)
 TScr.ZIndex = 5
 TScr.ScrollingDirection = Enum.ScrollingDirection.X
@@ -1610,11 +1608,11 @@ local TLy = Instance.new("UIListLayout", TScr)
 TLy.FillDirection = Enum.FillDirection.Horizontal
 TLy.VerticalAlignment = Enum.VerticalAlignment.Center
 TLy.HorizontalAlignment = Enum.HorizontalAlignment.Left
-TLy.Padding = UDim.new(0,8)
+TLy.Padding = UDim.new(0,6)
 
 local Cont = Instance.new("Frame", W)
-Cont.Size = UDim2.new(1,-10,1,-136)
-Cont.Position = UDim2.new(0,5,0,108)
+Cont.Size = UDim2.new(1,-10,1,-128)
+Cont.Position = UDim2.new(0,5,0,100)
 Cont.BackgroundTransparency = 1
 Cont.ZIndex = 3
 
@@ -1645,103 +1643,75 @@ TLG.BotHandle = BH
 local Tabs = {}
 
 local function Tab(name, icon)
-    -- Pestañas tipo "pill": icono y nombre en una sola línea.
-    local widths = {
-        Info=82, Combat=104, Aimbot=112, Fly=82, Islands=106,
-        Scripts=104, Tools=92, ESP=78, Visuals=104, Optimize=112,
-        Config=104
-    }
-    local tabWidth = widths[name] or math.clamp(52 + #name * 6, 82, 124)
-
     local b = Instance.new("TextButton", TScr)
-    b.Name = "Tab_" .. tostring(name)
-    b.Size = UDim2.new(0, tabWidth, 0, 36)
+    b.Size = UDim2.new(0,88,0,34)
     b.BackgroundColor3 = C.BG3
-    b.BackgroundTransparency = 0.15
+    b.BackgroundTransparency = 1
     b.Text = ""
     b.BorderSizePixel = 0
     b.AutoButtonColor = false
     b.ZIndex = 6
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 11)
-
-    local outline = Instance.new("UIStroke", b)
-    outline.Color = C.Yel
-    outline.Thickness = 1
-    outline.Transparency = 0.82
-
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0,8)
     local ico = Instance.new("TextLabel", b)
-    ico.Size = UDim2.new(0, 23, 1, 0)
-    ico.Position = UDim2.new(0, 9, 0, 0)
+    ico.Size = UDim2.new(1,0,0,14)
+    ico.Position = UDim2.new(0,0,0,3)
     ico.BackgroundTransparency = 1
     ico.Text = icon
-    ico.TextSize = 14
-    ico.Font = Enum.Font.GothamBold
-    ico.TextColor3 = C.Gr
-    ico.TextTransparency = 0.12
+    ico.TextSize = 13
     ico.ZIndex = 7
-
     local lb = Instance.new("TextLabel", b)
-    lb.Size = UDim2.new(1, -38, 1, 0)
-    lb.Position = UDim2.new(0, 32, 0, 0)
+    lb.Size = UDim2.new(1,0,0,12)
+    lb.Position = UDim2.new(0,0,0,18)
     lb.BackgroundTransparency = 1
     lb.Font = Enum.Font.GothamSemibold
     lb.Text = name
     lb.TextColor3 = C.Gr
-    lb.TextSize = 11
-    lb.TextXAlignment = Enum.TextXAlignment.Left
-    lb.TextTruncate = Enum.TextTruncate.AtEnd
+    lb.TextSize = 10
     lb.ZIndex = 7
-
+    local ul = Instance.new("Frame", b)
+    ul.Size = UDim2.new(0,0,0,3)
+    ul.Position = UDim2.new(0.5,0,1,-3)
+    ul.AnchorPoint = Vector2.new(0.5,1)
+    ul.BackgroundColor3 = C.Yel
+    ul.BorderSizePixel = 0
+    ul.ZIndex = 8
+    Instance.new("UICorner", ul).CornerRadius = UDim.new(1,0)
     local pg = Instance.new("ScrollingFrame", Cont)
-    pg.Name = "Page_" .. tostring(name)
     pg.Size = UDim2.new(1,0,1,0)
     pg.BackgroundTransparency = 1
     pg.BorderSizePixel = 0
-    pg.ScrollBarThickness = TLG.IsMobile and 6 or 5
+    pg.ScrollBarThickness = TLG.IsMobile and 8 or 5
     pg.ScrollBarImageColor3 = C.Yel
     pg.CanvasSize = UDim2.new(0,0,0,0)
     pg.ZIndex = 4
     pcall(function() pg.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
     pg.Visible = false
-
     local pl = Instance.new("UIListLayout", pg)
-    pl.Padding = UDim.new(0,7)
+    pl.Padding = UDim.new(0,6)
     local pp = Instance.new("UIPadding", pg)
-    pp.PaddingTop = UDim.new(0,9)
-    pp.PaddingLeft = UDim.new(0,9)
-    pp.PaddingRight = UDim.new(0,9)
-    pp.PaddingBottom = UDim.new(0,10)
-
-    local entry = {b=b, l=lb, p=pg, u=outline, ico=ico, stroke=outline, name=name}
-    table.insert(Tabs, entry)
-
+    pp.PaddingTop = UDim.new(0,8)
+    pp.PaddingLeft = UDim.new(0,8)
+    pp.PaddingRight = UDim.new(0,8)
+    pp.PaddingBottom = UDim.new(0,8)
+    table.insert(Tabs, {b = b, l = lb, p = pg, u = ul, ico = ico})
     b.Activated:Connect(function()
         for _, t in ipairs(Tabs) do
             t.l.TextColor3 = C.Gr
-            t.ico.TextColor3 = C.Gr
-            t.ico.TextTransparency = 0.12
+            t.ico.TextTransparency = 0.5
             t.p.Visible = false
             t.b.BackgroundColor3 = C.BG3
-            t.b.BackgroundTransparency = 0.15
-            if t.stroke then t.stroke.Transparency = 0.82 end
-            TW:Create(t.b, TweenInfo.new(0.16, Enum.EasingStyle.Quad), {
-                BackgroundTransparency = 0.15
-            }):Play()
+            t.b.BackgroundTransparency = 1
+            TW:Create(t.u, TweenInfo.new(0.2), {Size = UDim2.new(0,0,0,3)}):Play()
         end
-
         lb.TextColor3 = C.Yel
-        ico.TextColor3 = C.Yel
         ico.TextTransparency = 0
         pg.Visible = true
-        pg.Position = UDim2.new(0,14,0,0)
-        TW:Create(pg, TweenInfo.new(0.20, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            Position = UDim2.new(0,0,0,0)
-        }):Play()
-        b.BackgroundColor3 = Color3.fromRGB(61,35,25)
-        b.BackgroundTransparency = 0.02
-        if outline then outline.Transparency = 0.18 end
+        pg.Position = UDim2.new(0,28,0,0)
+        TW:Create(pg, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2.new(0,0,0,0)}):Play()
+        b.BackgroundColor3 = C.BG3
+        b.BackgroundTransparency = 0.5
+        TW:Create(ul, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Size = UDim2.new(0.7,0,0,3)}):Play()
     end)
-
     return pg
 end
 
@@ -1961,12 +1931,11 @@ local POp = Tab("Optimize", "⚡")
 task.wait(0.1)
 if Tabs[1] then
     Tabs[1].l.TextColor3 = C.Yel
-    Tabs[1].ico.TextColor3 = C.Yel
     Tabs[1].ico.TextTransparency = 0
     Tabs[1].p.Visible = true
-    Tabs[1].b.BackgroundColor3 = Color3.fromRGB(61,35,25)
-    Tabs[1].b.BackgroundTransparency = 0.02
-    if Tabs[1].stroke then Tabs[1].stroke.Transparency = 0.18 end
+    Tabs[1].b.BackgroundColor3 = C.BG3
+    Tabs[1].b.BackgroundTransparency = 0.5
+    TW:Create(Tabs[1].u, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Size = UDim2.new(0.7,0,0,3)}):Play()
 end
 
 TLG.PInfo = PInfo
