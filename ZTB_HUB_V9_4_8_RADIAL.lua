@@ -1,6 +1,5 @@
--- ZTB HUB — Meme Sea Edition
--- V9.4.7 FIXED | SKYBOX TESTER + RADIAL CENTRAL
--- Hitbox visual segura + God Orb sin anclar el personaje
+-- TLG HUB — Meme Sea Edition
+-- Ghost Hitbox + Fly Boost + FABs visibles
 
 local TW = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
@@ -49,7 +48,7 @@ TLG.getParent = getParent
 TLG.SP = getParent()
 
 --==================================================
--- ZTB HUB KEY SYSTEM
+-- TLG HUB KEY SYSTEM
 --==================================================
 -- Client-side gate only. For real protection, validate keys
 -- against a server you control rather than embedding secrets.
@@ -108,7 +107,7 @@ local function ShowTLGKeyGate()
     title.Size = UDim2.new(1, -24, 0, 40)
     title.Position = UDim2.fromOffset(12, 10)
     title.BackgroundTransparency = 1
-    title.Text = "🔐 ZTB HUB — KEY SYSTEM"
+    title.Text = "🔐 TLG HUB — KEY SYSTEM"
     title.TextSize = 18
     title.Font = Enum.Font.GothamBold
     title.TextColor3 = Color3.fromRGB(255, 215, 0)
@@ -185,7 +184,7 @@ end
 
 local names = {"TLG_GoldV4","TLG_GoldV5","TLG_GoldV6","TLG_GoldV7",
   "TLG_GoldV8","TLG_HideBtn","TLG_Express","TLG_FAB","TLG_FAB_Float",
-  "ZTB_Intro","ZTB_Watermark","TLG_FugaFAB"}
+  "TLG_Intro","TLG_Watermark","TLG_FugaFAB"}
 for _, n in ipairs(names) do
   pcall(function() local o = TLG.SP:FindFirstChild(n); if o then o:Destroy() end end)
   pcall(function() local o = CG:FindFirstChild(n); if o then o:Destroy() end end)
@@ -224,12 +223,12 @@ function TLG.A() return TLG.CustomAccent or Themes[TLG.CurrentTheme].A end
 function TLG.A2() return TLG.CustomAccent2 or Themes[TLG.CurrentTheme].A2 end
 
 local C = {
-  BG=Color3.fromRGB(12,7,8), BG2=Color3.fromRGB(24,12,13),
-  BG3=Color3.fromRGB(39,20,19), BG4=Color3.fromRGB(52,27,23),
+  BG=Color3.fromRGB(8,8,8), BG2=Color3.fromRGB(16,16,16),
+  BG3=Color3.fromRGB(24,24,24), BG4=Color3.fromRGB(34,34,34),
   Wh=Color3.fromRGB(255,255,255), Gr=Color3.fromRGB(150,140,110),
   GrD=Color3.fromRGB(70,60,40), Grn=Color3.fromRGB(100,255,140),
   Rd=Color3.fromRGB(255,80,100), Cyan=Color3.fromRGB(0,240,255),
-  Yel=Color3.fromRGB(230,135,65)
+  Yel=Color3.fromRGB(255,215,0)
 }
 TLG.C = C
 
@@ -395,26 +394,147 @@ function TLG.GetStats(plr)
   return s
 end
 
--- HITBOX MANUAL: solo contorno visual; no redimensiona personajes.
-local HB = {On = false, Sz = 10, Tr = 0.35, Conn = nil, Original = {}}
+-- AIMBOT — hitbox fantasma (no rompe el movimiento)
+local AIM = {
+  On = false, Conn = nil, Target = nil,
+  HeadSize = 800, MaxTargetRange = 20000, ShowHitbox = false, CharConns = {}
+}
+TLG.AIM = AIM
+
+local function aimRemoveHitbox(plr)
+  local ch = plr.Character
+  if not ch then return end
+  local old = ch:FindFirstChild("TLG_Hitbox")
+  if old then pcall(function() old:Destroy() end) end
+end
+
+local function aimExpandHead(plr)
+  local ch = plr.Character
+  if not ch then return end
+  local h = ch:FindFirstChild("Head")
+  if not h then return end
+  aimRemoveHitbox(plr)
+  local s = math.clamp(AIM.HeadSize, 1, 2048)
+  local hb = Instance.new("Part")
+  hb.Name = "TLG_Hitbox"
+  hb.Size = Vector3.new(s, s, s)
+  hb.Transparency = AIM.ShowHitbox and 0.7 or 1
+  hb.CanCollide = false
+  hb.Massless = true
+  hb.Anchored = false
+  hb.CanQuery = true
+  hb.CanTouch = true
+  hb.Material = AIM.ShowHitbox and Enum.Material.ForceField
+    or Enum.Material.Neon
+  hb.Color = TLG.A()
+  hb.TopSurface = Enum.SurfaceType.Smooth
+  hb.BottomSurface = Enum.SurfaceType.Smooth
+  hb.CFrame = h.CFrame
+  hb.Parent = ch
+  local weld = Instance.new("WeldConstraint")
+  weld.Part0 = h
+  weld.Part1 = hb
+  weld.Parent = hb
+  hb.CFrame = h.CFrame
+end
+
+local function aimFindTarget()
+  local best, bestD = nil, math.huge
+  local mc = TLG.LP.Character
+  if not mc then return nil end
+  local mh = mc:FindFirstChild("HumanoidRootPart")
+  if not mh then return nil end
+  for _, p in ipairs(PLR:GetPlayers()) do
+    if p ~= TLG.LP then
+      local ch = p.Character
+      local hu = ch and ch:FindFirstChildOfClass("Humanoid")
+      local hb = ch and ch:FindFirstChild("TLG_Hitbox")
+      local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+      if hu and hu.Health > 0 and (hb or hrp) then
+        local pos = (hb or hrp).Position
+        local d = (pos - mh.Position).Magnitude
+        if d <= AIM.MaxTargetRange and d < bestD then
+          bestD = d
+          best = p
+        end
+      end
+    end
+  end
+  return best
+end
+
+local function aimLoop()
+  if not AIM.On then return end
+  for _, p in ipairs(PLR:GetPlayers()) do
+    if p ~= TLG.LP and p.Character then
+      if not p.Character:FindFirstChild("TLG_Hitbox") then
+        pcall(aimExpandHead, p)
+      end
+    end
+  end
+  local t = aimFindTarget()
+  AIM.Target = t
+  if not t then return end
+  -- Do not rotate/move the local character here.
+  -- The previous Heartbeat CFrame write fought Orbital Map and caused
+  -- movement/orbit jitter. The hitbox remains available without forcing
+  -- the player's HumanoidRootPart to face the target.
+  return
+end
+
+function TLG.AIM_Start()
+  if AIM.On then return end
+  AIM.On = true
+  for _, p in ipairs(PLR:GetPlayers()) do
+    if p ~= TLG.LP then pcall(aimExpandHead, p) end
+  end
+  AIM.CharConns = AIM.CharConns or {}
+  for _, p in ipairs(PLR:GetPlayers()) do
+    if p ~= TLG.LP then
+      AIM.CharConns[p] = p.CharacterAdded:Connect(function()
+        if AIM.On then task.wait(0.3); pcall(aimExpandHead, p) end
+      end)
+    end
+  end
+  AIM.Conn = RS.Heartbeat:Connect(aimLoop)
+  TLG.PNotif("🎯 Hitbox", "✅ "..AIM.HeadSize, C.Grn)
+end
+
+function TLG.AIM_Stop()
+  if not AIM.On then return end
+  AIM.On = false
+  if AIM.Conn then
+    pcall(function() AIM.Conn:Disconnect() end); AIM.Conn = nil
+  end
+  if AIM.CharConns then
+    for _, c in pairs(AIM.CharConns) do
+      pcall(function() c:Disconnect() end)
+    end
+    AIM.CharConns = {}
+  end
+  for _, p in ipairs(PLR:GetPlayers()) do
+    if p ~= TLG.LP then pcall(aimRemoveHitbox, p) end
+  end
+  AIM.Target = nil
+  TLG.PNotif("🎯 Hitbox", "❌ Desactivado", C.Rd)
+end
+
+-- HITBOX MANUAL
+local HB = {On = false, Sz = 50, Tr = 0.5}
 local function applyHB(p)
   if p == TLG.LP then return end
   local ch = p.Character; if not ch then return end
   local h = ch:FindFirstChild("HumanoidRootPart")
   if not h then return end
-  local old = h:FindFirstChild("TLG_ManualHitboxVisual")
-  if old then old:Destroy() end
-  local box = Instance.new("BoxHandleAdornment")
-  box.Name = "TLG_ManualHitboxVisual"
-  box.Adornee = h
-  -- Visual-only adornment: never resize the real character part or its collisions.
-  local sz = math.max(1, tonumber(HB.Sz) or 10)
-  box.Size = Vector3.new(sz, sz, sz)
-  box.Transparency = math.clamp(HB.Tr, 0, 1)
-  box.AlwaysOnTop = true
-  box.ZIndex = 4
-  box.Color3 = TLG.A()
-  box.Parent = h
+  local s = math.clamp(HB.Sz, 1, 2048)
+  pcall(function()
+    h.Size = Vector3.new(s, s, s)
+    h.Transparency = HB.Tr
+    h.LocalTransparencyModifier = 0
+    h.Material = Enum.Material.Neon
+    h.Color = TLG.A()
+    h.CanCollide = false
+  end)
 end
 function TLG.HBStart()
   if HB.Conn then return end
@@ -425,26 +545,13 @@ function TLG.HBStart()
   HB.Conn = RS.Heartbeat:Connect(function()
     if not HB.On then return end
     for _, p in ipairs(PLR:GetPlayers()) do
-      if p ~= TLG.LP then
-        local ch = p.Character
-        local root = ch and ch:FindFirstChild("HumanoidRootPart")
-        if root and not root:FindFirstChild("TLG_ManualHitboxVisual") then
-          pcall(applyHB, p)
-        end
-      end
+      if p ~= TLG.LP then pcall(applyHB, p) end
     end
   end)
 end
 function TLG.HBStop()
   HB.On = false
   if HB.Conn then pcall(function() HB.Conn:Disconnect() end); HB.Conn = nil end
-  for _, p in ipairs(PLR:GetPlayers()) do
-    local ch = p.Character
-    local root = ch and ch:FindFirstChild("HumanoidRootPart")
-    local visual = root and root:FindFirstChild("TLG_ManualHitboxVisual")
-    if visual then pcall(function() visual:Destroy() end) end
-  end
-  HB.Original = {}
 end
 
 -- GOD ORB
@@ -512,7 +619,7 @@ end
 
 -- FLY (con boost Shift)
 TLG.Fly = {On=false, Spd=15000, BoostMul=3, Boost=false,
-  C=nil, Noclip=true, CollisionOriginal={}, Keys={Up=false, Down=false}}
+  C=nil, Noclip=true, Keys={Up=false, Down=false}}
 local function flyCleanup(h)
   if not h then return end
   pcall(function()
@@ -532,12 +639,13 @@ function TLG.FlyE()
     if h then pcall(function() h.Anchored = false end) end
     flyCleanup(h)
     if hu then pcall(function() hu.PlatformStand = false end) end
-    for p, original in pairs(TLG.Fly.CollisionOriginal) do
-      if p and p.Parent then
-        pcall(function() p.CanCollide = original end)
+    if TLG.Fly.Noclip then
+      for _, p in ipairs(ch:GetDescendants()) do
+        if p:IsA("BasePart") then
+          pcall(function() p.CanCollide = true end)
+        end
       end
     end
-    TLG.Fly.CollisionOriginal = {}
   end
   if TLG.Fly.C then pcall(function() TLG.Fly.C:Disconnect() end); TLG.Fly.C = nil end
 end
@@ -592,18 +700,8 @@ function TLG.FlyS()
       if not hu.PlatformStand then hu.PlatformStand = true end
       if TLG.Fly.Noclip then
         for _, p in ipairs(curCh:GetDescendants()) do
-          if p:IsA("BasePart") then
-            if TLG.Fly.CollisionOriginal[p] == nil then
-              TLG.Fly.CollisionOriginal[p] = p.CanCollide
-            end
-            p.CanCollide = false
-          end
+          if p:IsA("BasePart") then p.CanCollide = false end
         end
-      else
-        for p, original in pairs(TLG.Fly.CollisionOriginal) do
-          if p and p.Parent then pcall(function() p.CanCollide = original end) end
-        end
-        TLG.Fly.CollisionOriginal = {}
       end
       local cam = TLG.Cam or workspace.CurrentCamera
       if cam then bg.CFrame = cam.CFrame end
@@ -665,23 +763,7 @@ TLG.LP.CharacterAdded:Connect(function()
   end
 end)
 
-TLG.Speed = {On=false, Val=300, Original=nil}
-function TLG.SetSpeedEnabled(enabled)
-  local st = TLG.Speed
-  enabled = enabled == true
-  if enabled then
-    if not st.On then
-      local hum = TLG.LP.Character and TLG.LP.Character:FindFirstChildOfClass("Humanoid")
-      st.Original = hum and hum.WalkSpeed or nil
-    end
-    st.On = true
-  else
-    st.On = false
-    local hum = TLG.LP.Character and TLG.LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum then pcall(function() hum.WalkSpeed = st.Original or 16 end) end
-    st.Original = nil
-  end
-end
+TLG.Speed = {On=false, Val=300}
 RS.RenderStepped:Connect(function()
   if TLG.Speed.On then
     local h = TLG.LP.Character
@@ -698,7 +780,6 @@ local AntiOrbit = {
   Stabilize=true
 }
 TLG.AntiOrbit = AntiOrbit
-TLG.AntiOrbitState = AntiOrbit
 
 local function antiOrbitRoot()
   local ch = TLG.LP.Character
@@ -795,7 +876,6 @@ end
 
 -- PROTECCIONES
 local AntiVoid = {On=false, Conn=nil, Y=-100}
-TLG.AntiVoidState = AntiVoid
 function TLG.AntiVoidStart()
   if AntiVoid.On then return end
   AntiVoid.On = true
@@ -842,7 +922,6 @@ function TLG.AntiFlingStop()
 end
 
 local AntiStun = {On=false, Conn=nil}
-TLG.AntiStunState = AntiStun
 local function antiStunForce()
   if not AntiStun.On then return end
   local ch = TLG.LP and TLG.LP.Character; if not ch then return end
@@ -877,28 +956,19 @@ function TLG.Panic()
   pcall(function() TLG.HBStop() end)
   pcall(function() TLG.GOS() end)
   pcall(function() TLG.SpS() end)
+  pcall(function() TLG.AIM_Stop() end)
   pcall(function() TLG.ESPStop() end)
   pcall(function() TLG.AntiVoidStop() end)
   pcall(function() TLG.AntiFlingStop() end)
   pcall(function() TLG.AntiStunStop() end)
   pcall(function() TLG.AntiOrbitStop() end)
   pcall(function() TLG.NoclipStop() end)
-  pcall(function() TLG.InfJumpStop() end)
-  pcall(function() TLG.ClickTPStop() end)
-  pcall(function() TLG.AntiAFKStop() end)
-  pcall(function() TLG.NoFallStop() end)
-  pcall(function() TLG.FullbrightStop() end)
-  pcall(function() TLG.HipHeightStop() end)
-  pcall(function() TLG.AutoPromptStop() end)
-  pcall(function() TLG.VisualSkillSpeedStop() end)
-  pcall(function() TLG.SetSpeedEnabled(false) end)
-  if TLG.SkyRestore then pcall(TLG.SkyRestore) end
-  if TLG.RestoreOptimize then pcall(TLG.RestoreOptimize) end
-  if TLG.AutoRejoinToggle then pcall(TLG.AutoRejoinToggle, false) end
+  pcall(function() TLG.OrbitalMapStop() end)
   if TLG.FruitAutoStop then pcall(TLG.FruitAutoStop) end
   if TLG.FruitESPStop then pcall(TLG.FruitESPStop) end
   if TLG.FastAttackStop then pcall(TLG.FastAttackStop) end
-  TLG.PNotif("🚨 PANIC", "Módulos desactivados", C.Rd)
+  TLG.Speed.On = false
+  TLG.PNotif("🚨 PANIC", "Todo desactivado", C.Rd)
 end
 
 -- AUTO REJOIN
@@ -1200,7 +1270,6 @@ local function SkyRestoreOriginal()
         Sky.Stashed = {}
     end)
 end
-TLG.SkyRestore = SkyRestoreOriginal
 local function SkyApply(ids)
     if Sky.Conn then pcall(function() Sky.Conn:Disconnect() end); Sky.Conn = nil end
     if not ids then SkyRestoreOriginal(); return end
@@ -1220,9 +1289,6 @@ local function SkyApply(ids)
         end)
     end)
 end
-TLG.SkyRestore = function()
-    SkyApply(nil)
-end
 
 local W = Instance.new("Frame", SG)
 W.Size = W_S
@@ -1237,11 +1303,11 @@ Instance.new("UICorner", W).CornerRadius = UDim.new(0,12)
 
 local WS = Instance.new("UIStroke", W)
 WS.Thickness = 2
-WS.Color = Color3.fromRGB(205,112,55)
-TLG.PGlow(WS, 0.08, 0.28, 1.5)
+WS.Color = TLG.A()
+TLG.PGlow(WS, 0.05, 0.35, 1.5)
 
 local Wgrad = Instance.new("UIGradient", W)
-Wgrad.Color = ColorSequence.new(Color3.fromRGB(10,6,7), Color3.fromRGB(42,20,18))
+Wgrad.Color = ColorSequence.new(C.BG, C.BG2)
 Wgrad.Rotation = 135
 
 TLG.W = W
@@ -1272,7 +1338,7 @@ end
 AddPattern(W, 42, C.Yel, 0.94, 15)
 
 local TB = Instance.new("Frame", W)
-TB.Size = UDim2.new(1,0,0,54)
+TB.Size = UDim2.new(1,0,0,42)
 TB.BackgroundColor3 = C.BG2
 TB.BackgroundTransparency = 0.05
 TB.BorderSizePixel = 0
@@ -1306,31 +1372,30 @@ DcS.Thickness = 1.5
 TLG.PGlow(DcS, 0.1, 0.5, 1.2)
 
 local MainTitle = Instance.new("TextLabel", TB)
-MainTitle.Size = UDim2.new(0.52,0,0,23)
-MainTitle.Position = UDim2.new(0.24,0,0,3)
-MainTitle.AnchorPoint = Vector2.new(0,0)
+MainTitle.Size = UDim2.new(0,180,0,18)
+MainTitle.Position = UDim2.new(0,42,0,6)
 MainTitle.BackgroundTransparency = 1
-MainTitle.Font = Enum.Font.Garamond
-MainTitle.Text = "ZTB HUB"
-MainTitle.TextSize = 20
+MainTitle.Font = Enum.Font.GothamBold
+MainTitle.Text = "TLG HUB"
+MainTitle.TextSize = 13
 MainTitle.TextColor3 = C.Yel
-MainTitle.TextXAlignment = Enum.TextXAlignment.Center
+MainTitle.TextXAlignment = Enum.TextXAlignment.Left
 MainTitle.ZIndex = 10
 
 local SubTitle = Instance.new("TextLabel", TB)
-SubTitle.Size = UDim2.new(0.52,0,0,14)
-SubTitle.Position = UDim2.new(0.24,0,0,29)
+SubTitle.Size = UDim2.new(0,180,0,12)
+SubTitle.Position = UDim2.new(0,42,0,24)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Font = Enum.Font.Garamond
-SubTitle.Text = "✦ MEME SEA  •  ZTB EDITION ✦"
-SubTitle.TextSize = 11
+SubTitle.Font = Enum.Font.Gotham
+SubTitle.Text = "Meme Sea • V9.4.2"
+SubTitle.TextSize = 9
 SubTitle.TextColor3 = C.Gr
-SubTitle.TextXAlignment = Enum.TextXAlignment.Center
+SubTitle.TextXAlignment = Enum.TextXAlignment.Left
 SubTitle.ZIndex = 10
 
 local StatsPanel = Instance.new("Frame", TB)
-StatsPanel.Size = UDim2.new(0,112,0,20)
-StatsPanel.Position = UDim2.new(1,-154,0,3)
+StatsPanel.Size = UDim2.new(0,130,0,24)
+StatsPanel.Position = UDim2.new(1,-190,0.5,-12)
 StatsPanel.BackgroundColor3 = C.BG3
 StatsPanel.BackgroundTransparency = 0.3
 StatsPanel.BorderSizePixel = 0
@@ -1349,7 +1414,7 @@ FpsLabel.BackgroundTransparency = 1
 FpsLabel.Font = Enum.Font.GothamBold
 FpsLabel.Text = "FPS: --"
 FpsLabel.TextColor3 = C.Grn
-FpsLabel.TextSize = 9
+FpsLabel.TextSize = 10
 FpsLabel.TextXAlignment = Enum.TextXAlignment.Left
 FpsLabel.ZIndex = 9
 
@@ -1360,7 +1425,7 @@ PingLabel.BackgroundTransparency = 1
 PingLabel.Font = Enum.Font.GothamBold
 PingLabel.Text = "Ping: --"
 PingLabel.TextColor3 = C.Cyan
-PingLabel.TextSize = 9
+PingLabel.TextSize = 10
 PingLabel.TextXAlignment = Enum.TextXAlignment.Right
 PingLabel.ZIndex = 9
 
@@ -1391,28 +1456,6 @@ STtl.TextXAlignment = Enum.TextXAlignment.Right
 STtl.ZIndex = 7
 
 TLG.STtl = STtl
-
--- Rediseño: botón de cierre visible en la esquina superior derecha.
-local CloseBtn = Instance.new("TextButton", TB)
-CloseBtn.Name = "ZTB_CloseButton"
-CloseBtn.Size = UDim2.new(0,28,0,28)
-CloseBtn.Position = UDim2.new(1,-34,0.5,-14)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(48,18,20)
-CloseBtn.BackgroundTransparency = 0.05
-CloseBtn.BorderSizePixel = 0
-CloseBtn.Text = "×"
-CloseBtn.Font = Enum.Font.Garamond
-CloseBtn.TextSize = 27
-CloseBtn.TextColor3 = Color3.fromRGB(255,190,135)
-CloseBtn.ZIndex = 20
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0,7)
-local CloseStroke = Instance.new("UIStroke", CloseBtn)
-CloseStroke.Color = Color3.fromRGB(205,112,55)
-CloseStroke.Transparency = 0.25
-CloseBtn.Activated:Connect(function()
-    pcall(function() W.Visible = false end)
-    pcall(function() WM.Visible = false end)
-end)
 
 local DragS = {active=false, start=nil, pos=nil}
 local function makeDrag(handle)
@@ -1456,7 +1499,7 @@ makeDrag(TB)
 
 local TabBar = Instance.new("Frame", W)
 TabBar.Size = UDim2.new(1,0,0,38)
-TabBar.Position = UDim2.new(0,0,0,54)
+TabBar.Position = UDim2.new(0,0,0,42)
 TabBar.BackgroundColor3 = C.BG2
 TabBar.BackgroundTransparency = 0.3
 TabBar.BorderSizePixel = 0
@@ -1481,8 +1524,8 @@ TLy.HorizontalAlignment = Enum.HorizontalAlignment.Left
 TLy.Padding = UDim.new(0,6)
 
 local Cont = Instance.new("Frame", W)
-Cont.Size = UDim2.new(1,-10,1,-128)
-Cont.Position = UDim2.new(0,5,0,100)
+Cont.Size = UDim2.new(1,-10,1,-116)
+Cont.Position = UDim2.new(0,5,0,88)
 Cont.BackgroundTransparency = 1
 Cont.ZIndex = 3
 
@@ -1490,7 +1533,7 @@ TLG.TabBar = TabBar
 TLG.Cont = Cont
 
 local BH = Instance.new("Frame", W)
-BH.Name = "ZTB_BottomHandle"
+BH.Name = "TLG_BottomHandle"
 BH.Size = UDim2.new(1,-10,0,20)
 BH.Position = UDim2.new(0,5,1,-24)
 BH.BackgroundColor3 = C.BG2
@@ -1514,7 +1557,7 @@ local Tabs = {}
 
 local function Tab(name, icon)
     local b = Instance.new("TextButton", TScr)
-    b.Size = UDim2.new(0,88,0,34)
+    b.Size = UDim2.new(0,80,0,32)
     b.BackgroundColor3 = C.BG3
     b.BackgroundTransparency = 1
     b.Text = ""
@@ -1536,7 +1579,7 @@ local function Tab(name, icon)
     lb.Font = Enum.Font.GothamSemibold
     lb.Text = name
     lb.TextColor3 = C.Gr
-    lb.TextSize = 10
+    lb.TextSize = 9
     lb.ZIndex = 7
     local ul = Instance.new("Frame", b)
     ul.Size = UDim2.new(0,0,0,3)
@@ -1702,57 +1745,87 @@ local function Tog(p, txt, def, cb)
 end
 
 local function Sli(p, txt, mn, mx, def, cb)
-    -- Control sin slider: flechas para evitar fallos de arrastre en móvil.
-    local value = math.clamp(math.floor(tonumber(def) or mn), mn, mx)
-    local step = math.max(1, math.floor((mx - mn) / 20))
+    local sv = def
     local f = Instance.new("Frame", p)
-    f.Size = UDim2.new(1,0,0,38)
-    f.BackgroundColor3 = Color3.fromRGB(22,13,15)
-    f.BackgroundTransparency = 0.05
+    f.Size = UDim2.new(1,0,0,40)
+    f.BackgroundColor3 = Color3.fromRGB(10,10,10)
+    f.BackgroundTransparency = 0.1
     f.BorderSizePixel = 0
     f.ZIndex = 5
-    Instance.new("UICorner", f).CornerRadius = UDim.new(0,8)
-    local stroke = Instance.new("UIStroke", f)
-    stroke.Color = Color3.fromRGB(180,95,45); stroke.Thickness = 1; stroke.Transparency = 0.45
-    local label = Instance.new("TextLabel", f)
-    label.Size = UDim2.new(0.48,-8,1,0)
-    label.Position = UDim2.new(0,10,0,0)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamSemibold
-    label.Text = txt
-    label.TextColor3 = C.Wh
-    label.TextSize = 10
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.ZIndex = 7
-    local val = Instance.new("TextLabel", f)
-    val.Size = UDim2.new(0.22,0,1,0)
-    val.Position = UDim2.new(0.49,0,0,0)
-    val.BackgroundTransparency = 1
-    val.Font = Enum.Font.GothamBold
-    val.TextColor3 = Color3.fromRGB(255,170,90)
-    val.TextSize = 10
-    val.ZIndex = 7
-    local function refresh()
-        val.Text = tostring(value)
-        safeCB(cb, value)
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0,10)
+    local fsS = Instance.new("UIStroke", f)
+    fsS.Color = C.Yel; fsS.Thickness = 1; fsS.Transparency = 0.75
+    local l = Instance.new("TextLabel", f)
+    l.Size = UDim2.new(0.6,-12,0,12)
+    l.Position = UDim2.new(0,10,0,4)
+    l.BackgroundTransparency = 1
+    l.Font = Enum.Font.GothamSemibold
+    l.Text = txt
+    l.TextColor3 = C.Wh
+    l.TextSize = 9
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.ZIndex = 7
+    local vl = Instance.new("TextLabel", f)
+    vl.Size = UDim2.new(0.4,-10,0,12)
+    vl.Position = UDim2.new(0.6,2,0,4)
+    vl.BackgroundTransparency = 1
+    vl.Font = Enum.Font.GothamBold
+    vl.Text = tostring(sv)
+    vl.TextSize = 10
+    vl.TextColor3 = C.Yel
+    vl.TextXAlignment = Enum.TextXAlignment.Right
+    vl.ZIndex = 7
+    local b = Instance.new("Frame", f)
+    b.Size = UDim2.new(1,-20,0,6)
+    b.Position = UDim2.new(0,10,0,24)
+    b.BackgroundColor3 = C.BG
+    b.BorderSizePixel = 0
+    b.ZIndex = 6
+    Instance.new("UICorner", b).CornerRadius = UDim.new(1,0)
+    local fi = Instance.new("Frame", b)
+    fi.Size = UDim2.new((sv-mn)/(mx-mn),0,1,0)
+    fi.BorderSizePixel = 0
+    fi.ZIndex = 7
+    fi.BackgroundColor3 = C.Yel
+    Instance.new("UICorner", fi).CornerRadius = UDim.new(1,0)
+    local kn = Instance.new("Frame", b)
+    kn.Size = UDim2.new(0,12,0,12)
+    kn.Position = UDim2.new((sv-mn)/(mx-mn),-6,0.5,-6)
+    kn.BackgroundColor3 = C.Wh
+    kn.BorderSizePixel = 0
+    kn.ZIndex = 8
+    Instance.new("UICorner", kn).CornerRadius = UDim.new(1,0)
+    local tn = Instance.new("TextButton", f)
+    tn.Size = UDim2.new(1,-6,0,40)
+    tn.Position = UDim2.new(0,3,0,0)
+    tn.BackgroundTransparency = 1
+    tn.Text = ""
+    tn.ZIndex = 10
+    local dragging = false
+    local function up(i)
+        local pp = math.clamp((i.Position.X - b.AbsolutePosition.X) / b.AbsoluteSize.X, 0, 1)
+        local v = math.floor(mn + (mx - mn) * pp)
+        fi.Size = UDim2.new(pp,0,1,0)
+        kn.Position = UDim2.new(pp,-6,0.5,-6)
+        vl.Text = tostring(v)
+        safeCB(cb, v)
     end
-    local function arrow(symbol, x, delta)
-        local b = Instance.new("TextButton", f)
-        b.Size = UDim2.new(0,28,0,26)
-        b.Position = UDim2.new(x,-14,0.5,-13)
-        b.BackgroundColor3 = Color3.fromRGB(45,24,23)
-        b.Text = symbol; b.TextColor3 = Color3.fromRGB(255,180,100)
-        b.TextSize = 16; b.Font = Enum.Font.GothamBold
-        b.BorderSizePixel = 0; b.ZIndex = 8
-        Instance.new("UICorner", b).CornerRadius = UDim.new(0,6)
-        b.Activated:Connect(function()
-            value = math.clamp(value + delta * step, mn, mx)
-            refresh()
-        end)
-    end
-    arrow("◀", 0.78, -1)
-    arrow("▶", 0.92, 1)
-    refresh()
+    tn.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            up(i)
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            up(i)
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
 end
 
 local function Btn(p, txt, col, cb)
@@ -1788,6 +1861,7 @@ TLG.Btn = Btn
 
 local PInfo = Tab("Info", "📊")
 local PCb = Tab("Combat", "⚔️")
+local PAb = Tab("Aimbot", "🎯")
 local PFl = Tab("Fly", "✈")
 local PIs = Tab("Islands", "🏝️")
 local PSc = Tab("Scripts", "📜")
@@ -1809,6 +1883,7 @@ end
 
 TLG.PInfo = PInfo
 TLG.PCb = PCb
+TLG.PAb = PAb
 TLG.PFl = PFl
 TLG.PIs = PIs
 TLG.PSc = PSc
@@ -2106,88 +2181,12 @@ do
   Tog(PCb, "Activar Hitbox", false, function(v)
     if v then TLG.HBStart() else TLG.HBStop() end
   end)
-  local function addArrowAdjust(labelText, initial, minValue, maxValue, step, formatter, callback)
-    local value = initial
-    local row = Instance.new("Frame", PCb)
-    row.Size = UDim2.new(1, 0, 0, 34)
-    row.BackgroundColor3 = Color3.fromRGB(10,10,10)
-    row.BackgroundTransparency = 0.1
-    row.BorderSizePixel = 0
-    row.ZIndex = 5
-    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
-    local label = Instance.new("TextLabel", row)
-    label.Size = UDim2.new(0.42, -6, 1, 0)
-    label.Position = UDim2.new(0, 8, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamSemibold
-    label.Text = labelText
-    label.TextColor3 = C.Wh
-    label.TextSize = 10
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.ZIndex = 6
-    local display = Instance.new("TextLabel", row)
-    display.Size = UDim2.new(0.28, 0, 1, 0)
-    display.Position = UDim2.new(0.42, 0, 0, 0)
-    display.BackgroundTransparency = 1
-    display.Font = Enum.Font.GothamBold
-    display.TextColor3 = C.Yel
-    display.TextSize = 10
-    display.ZIndex = 6
-    local function refresh()
-      display.Text = formatter(value)
-      callback(value)
-    end
-    local function arrow(text, xScale, delta)
-      local b = Instance.new("TextButton", row)
-      b.Size = UDim2.new(0, 30, 0, 26)
-      b.Position = UDim2.new(xScale, -15, 0.5, -13)
-      b.BackgroundColor3 = C.BG3
-      b.Text = text
-      b.TextColor3 = C.Yel
-      b.TextSize = 17
-      b.Font = Enum.Font.GothamBold
-      b.BorderSizePixel = 0
-      b.ZIndex = 7
-      Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-      b.Activated:Connect(function()
-        value = math.clamp(value + delta * step, minValue, maxValue)
-        refresh()
-      end)
-    end
-    arrow("◀", 0.76, -1)
-    arrow("▶", 0.92, 1)
-    refresh()
-  end
-  local HB_PRESETS = {10, 50, 9999}
-  local HB_PRESET_INDEX = 1
-
-  local function refreshHBVisuals()
-    for _, p in ipairs(PLR:GetPlayers()) do
-      if p ~= TLG.LP then
-        local ch = p.Character
-        local root = ch and ch:FindFirstChild("HumanoidRootPart")
-        local visual = root and root:FindFirstChild("TLG_ManualHitboxVisual")
-        if visual then pcall(function() visual:Destroy() end) end
-        if HB.On then pcall(applyHB, p) end
-      end
-    end
-  end
-
-  addArrowAdjust("Tamaño hitbox", HB_PRESET_INDEX - 1, 0, 2, 1,
-    function(v) return tostring(HB_PRESETS[math.clamp(v, 0, 2) + 1]) end,
-    function(v)
-      HB_PRESET_INDEX = math.clamp(math.floor(v), 0, 2) + 1
-      HB.Sz = HB_PRESETS[HB_PRESET_INDEX]
-      refreshHBVisuals()
-    end)
-  addArrowAdjust("Transparencia", 35, 0, 100, 5,
-    function(v) return tostring(v) .. "%" end,
-    function(v)
-      HB.Tr = math.clamp(v, 0, 100) / 100
-      refreshHBVisuals()
-    end)
-  Lbl(PCb, "Tamaños disponibles: 10, 50 y 9999. Usa ◀ ▶ para cambiar.", C.Gr)
-  Lbl(PCb, "La hitbox es solo visual: no modifica colisiones ni congela jugadores.", C.Cyan)
+  Sli(PCb, "Tamaño", 10, 2048, 50, function(v) HB.Sz = v end)
+  Sli(PCb, "Transparencia", 0, 100, 50, function(v)
+    HB.Tr = v / 100
+  end)
+  Lbl(PCb, "Hitbox global manual (no es el aimbot).", C.Gr)
+  Lbl(PCb, "Para el aimbot, andá al tab 🎯 Aimbot.", C.Yel)
 
   Sec(PCb, "📷 CAMERA FOV", "📷")
 
@@ -2259,6 +2258,28 @@ do
   Lbl(PCb, "Asistente visual: el FOV se mantiene activo después de la cámara del juego.", C.Cyan)
 end
 
+-- AIMBOT TAB
+do
+  Sec(PAb, "🎯 AIMBOT / HITBOX 10K", "🎯")
+
+  local AB
+  AB = Btn(PAb, "🎯 ACTIVAR AIMBOT 10K", C.Yel, function()
+    if AIM.On then
+      TLG.AIM_Stop()
+      AB.Text = "🎯 ACTIVAR AIMBOT 10K"
+    else
+      AIM.MaxTargetRange = 10000
+      TLG.AIM_Start()
+      AB.Text = "🛑 DESACTIVAR AIMBOT 10K"
+    end
+  end)
+  AB.Size = UDim2.new(1,0,0,54)
+  AB.TextSize = 14
+
+  Lbl(PAb, "Rango lógico: 10,000 studs.", C.Yel)
+  Lbl(PAb, "Un solo botón controla todo el Aimbot.", C.Cyan)
+end
+
 -- FLY TAB
 do
   Sec(PFl, "✈ FLY", "✈")
@@ -2278,7 +2299,7 @@ do
   Lbl(PFl, "Shift = Boost (x3 por default)", C.Yel)
 
   Sec(PFl, "🏃 SPEED", "🏃")
-  Tog(PFl, "Activar Speed", false, function(v) TLG.SetSpeedEnabled(v) end)
+  Tog(PFl, "Activar Speed", false, function(v) TLG.Speed.On = v end)
   Sli(PFl, "Velocidad", 16, 1000, 300, function(v)
     TLG.Speed.Val = v
   end)
@@ -2416,7 +2437,7 @@ function TLG.Fuga()
   end)
 end
 
-local Noclip = {On=false, Conn=nil, Original={}}
+local Noclip = {On=false, Conn=nil}
 function TLG.NoclipStart()
   if Noclip.On then return end
   Noclip.On = true
@@ -2424,10 +2445,7 @@ function TLG.NoclipStart()
     if not Noclip.On then return end
     local ch = TLG.LP.Character; if not ch then return end
     for _, p in ipairs(ch:GetDescendants()) do
-      if p:IsA("BasePart") then
-        if Noclip.Original[p] == nil then Noclip.Original[p] = p.CanCollide end
-        p.CanCollide = false
-      end
+      if p:IsA("BasePart") then p.CanCollide = false end
     end
   end)
 end
@@ -2436,10 +2454,14 @@ function TLG.NoclipStop()
   if Noclip.Conn then
     pcall(function() Noclip.Conn:Disconnect() end); Noclip.Conn = nil
   end
-  for p, original in pairs(Noclip.Original) do
-    if p and p.Parent then pcall(function() p.CanCollide = original end) end
+  local ch = TLG.LP.Character
+  if ch then
+    for _, p in ipairs(ch:GetDescendants()) do
+      if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+        pcall(function() p.CanCollide = true end)
+      end
+    end
   end
-  Noclip.Original = {}
 end
 
 local InfJump = {On=false, Conn=nil}
@@ -2513,7 +2535,7 @@ function TLG.AntiAFKStop()
   end
 end
 
-local NoFall = {On=false, Conn=nil, CharConn=nil}
+local NoFall = {On=false, Conn=nil}
 function TLG.NoFallStart()
   if NoFall.On then return end
   NoFall.On = true
@@ -2534,19 +2556,17 @@ function TLG.NoFallStart()
   end
   local ch = TLG.LP.Character
   if ch then hook(ch:FindFirstChildOfClass("Humanoid")) end
-  if NoFall.CharConn then pcall(function() NoFall.CharConn:Disconnect() end) end
-  NoFall.CharConn = TLG.LP.CharacterAdded:Connect(function(c)
+  TLG.LP.CharacterAdded:Connect(function(c)
     task.wait(0.3)
-    if NoFall.On then hook(c:FindFirstChildOfClass("Humanoid")) end
+    if NoFall.On then
+      hook(c:FindFirstChildOfClass("Humanoid"))
+    end
   end)
 end
 function TLG.NoFallStop()
   NoFall.On = false
   if NoFall.Conn then
     pcall(function() NoFall.Conn:Disconnect() end); NoFall.Conn = nil
-  end
-  if NoFall.CharConn then
-    pcall(function() NoFall.CharConn:Disconnect() end); NoFall.CharConn = nil
   end
 end
 
@@ -2613,7 +2633,6 @@ end
 
 local OM = {On=false, Distance=250, Height=80, Speed=35,
   Angle=0, Connection=nil}
-TLG.OrbitalMapState = OM
 local function omRoot()
   local ch = TLG.LP and TLG.LP.Character
   return ch and ch:FindFirstChild("HumanoidRootPart")
@@ -2684,7 +2703,7 @@ do
   end)
   Sli(PTo, "Velocidad Fly", 100, 20000, TLG.Fly.Spd,
     function(v) TLG.Fly.Spd = v end)
-  Tog(PTo, "Speed", false, function(v) TLG.SetSpeedEnabled(v) end)
+  Tog(PTo, "Speed", false, function(v) TLG.Speed.On = v end)
   Sli(PTo, "Velocidad", 16, 1000, TLG.Speed.Val,
     function(v) TLG.Speed.Val = v end)
 
@@ -2710,7 +2729,7 @@ do
     function(v) TLG.FugaSetHeight(v) end)
 
   Sec(PTo, "🌀 ORBITAL MAP", "🌀")
-  Lbl(PTo, "Movimiento estable: no fuerza el giro del personaje.", C.Gr)
+  Lbl(PTo, "Movimiento orbital: desactívalo para recuperar el control normal.", C.Gr)
 
   Tog(PTo, "Orbital Mapa", false, function(v)
     if v then TLG.OrbitalMapStart() else TLG.OrbitalMapStop() end
@@ -3131,20 +3150,13 @@ do
 
   Sec(PVi, "🌌 SKYBOX", "🌌")
   local skies = {
-    {name="❌ Restaurar cielo", ids=nil},
-    {name="🏠 Roblox Sample", ids={"rbxassetid://162001887","rbxassetid://161998893","rbxassetid://162001897","rbxassetid://162001904","rbxassetid://162001919","rbxassetid://162001926"}},
-    {name="🌌 Galaxy", ids={"rbxassetid://159454299","rbxassetid://159454296","rbxassetid://159454293","rbxassetid://159454286","rbxassetid://159454300","rbxassetid://159454288"}},
+    {name="❌ Ninguno", ids=nil},
+    {name="🏠 Sample", ids={"rbxassetid://162001887","rbxassetid://161998893","rbxassetid://162001897","rbxassetid://162001904","rbxassetid://162001919","rbxassetid://162001926"}},
+    {name="🌌 Galaxia", ids={"rbxassetid://159454299","rbxassetid://159454296","rbxassetid://159454293","rbxassetid://159454286","rbxassetid://159454300","rbxassetid://159454288"}},
     {name="🌠 Vaporwave", ids={"rbxassetid://8631780182","rbxassetid://8631784904","rbxassetid://8631769834","rbxassetid://8631777199","rbxassetid://8631735555","rbxassetid://8631782345"}},
     {name="🌅 Sunset", ids={"rbxassetid://323494035","rbxassetid://323494368","rbxassetid://323494130","rbxassetid://323494252","rbxassetid://323494067","rbxassetid://323493360"}},
     {name="🔵 Blue Space", ids={"rbxassetid://135483466","rbxassetid://135483484","rbxassetid://135483461","rbxassetid://135483495","rbxassetid://135483499","rbxassetid://135483475"}},
-    {name="🌃 Red Night", ids={"rbxassetid://401664839","rbxassetid://401664862","rbxassetid://401664960","rbxassetid://401664881","rbxassetid://401664901","rbxassetid://401664936"}},
-    {name="🪐 Blue Planet", ids={"rbxassetid://218955819","rbxassetid://218953419","rbxassetid://218954524","rbxassetid://218958493","rbxassetid://218957134","rbxassetid://218950090"}},
-    {name="🌍 Blue Planet 2", ids={"rbxassetid://16888989874","rbxassetid://16888991855","rbxassetid://16888995219","rbxassetid://16888998994","rbxassetid://16889000916","rbxassetid://16889004122"}},
-    {name="🌆 Twilight", ids={"rbxassetid://264908339","rbxassetid://264907909","rbxassetid://264909420","rbxassetid://264909758","rbxassetid://264908886","rbxassetid://264907379"}},
-    {name="☁️ Vivid Skies", ids={"rbxassetid://271042516","rbxassetid://271077243","rbxassetid://271042556","rbxassetid://271042310","rbxassetid://271042467","rbxassetid://271077958"}},
-    {name="✨ Elysium", ids={"rbxassetid://1898724755","rbxassetid://1898727189","rbxassetid://1898722814","rbxassetid://1898729298","rbxassetid://1898741025","rbxassetid://1898736761"}},
-    {name="💗 Vaporwave 2", ids={"rbxassetid://1417494030","rbxassetid://1417494146","rbxassetid://1417494253","rbxassetid://1417494402","rbxassetid://1417494499","rbxassetid://1417494643"}},
-    {name="🌈 Aurora", ids={"rbxassetid://87940909296156","rbxassetid://103510771527492","rbxassetid://85585087312696","rbxassetid://130745713571518","rbxassetid://84365244722499","rbxassetid://70997945956227"}}
+    {name="🪐 Blue Planet", ids={"rbxassetid://218955819","rbxassetid://218953419","rbxassetid://218954524","rbxassetid://218958493","rbxassetid://218957134","rbxassetid://218950090"}}
   }
   for _, s in ipairs(skies) do
     Btn(PVi, s.name, C.Yel, function()
@@ -3176,7 +3188,6 @@ end
 do
   Sec(POp, "⚡ FPS", "⚡")
   local orig = {}
-  local shadowsOriginal = nil
   Tog(POp, "Quitar Texturas", false, function(v)
     if v then
       for _, d in ipairs(workspace:GetDescendants()) do
@@ -3195,25 +3206,8 @@ do
     end
   end)
   Tog(POp, "Quitar Sombras", false, function(v)
-    if v then
-      if shadowsOriginal == nil then shadowsOriginal = LIGHT.GlobalShadows end
-      LIGHT.GlobalShadows = false
-    elseif shadowsOriginal ~= nil then
-      LIGHT.GlobalShadows = shadowsOriginal
-      shadowsOriginal = nil
-    end
+    LIGHT.GlobalShadows = not v
   end)
-
-  TLG.RestoreOptimize = function()
-    for d, transparency in pairs(orig) do
-      if d and d.Parent then pcall(function() d.Transparency = transparency end) end
-    end
-    orig = {}
-    if shadowsOriginal ~= nil then
-      pcall(function() LIGHT.GlobalShadows = shadowsOriginal end)
-      shadowsOriginal = nil
-    end
-  end
 end
 
 -- ═══════════ V9: CONFIG / ESTILO ═══════════
@@ -3224,7 +3218,7 @@ local V9ok, V9err = pcall(function()
   end
 
   -- CONFIG GUARDADA
-  local CFG_FILE = "ZTB_Hub_Config.json"
+  local CFG_FILE = "TLG_Hub_Config.json"
   local CFG = {}
   pcall(function()
     if isfile and readfile and isfile(CFG_FILE) then
@@ -3499,7 +3493,7 @@ end
   end)
 
   Sec(PCf, "💾 CONFIGURACIÓN", "💾")
-  Lbl(PCf, "Se guarda en ZTB_Hub_Config.json (si tu ejecutor lo permite).", C.Gr)
+  Lbl(PCf, "Se guarda en TLG_Hub_Config.json (si tu ejecutor lo permite).", C.Gr)
   Btn(PCf, "🗑 Borrar configuración guardada", C.Rd, function()
     for k in pairs(CFG) do CFG[k] = nil end
     pcall(function() if writefile then writefile(CFG_FILE, "{}") end end)
@@ -3748,7 +3742,7 @@ local FRok, FRerr = pcall(function()
   local function buildReport()
     local L = {}
     local function add(s) table.insert(L, s) end
-    add("== REPORTE ZTB HUB · FRUTAS ==")
+    add("== REPORTE TLG HUB · FRUTAS ==")
     add("Palabras clave: " .. table.concat(Fr.Keys, ", "))
     local l = list()
     add("Candidatos en el mapa: " .. #l)
@@ -4094,59 +4088,51 @@ CF("🌀", "GOD ORB", function()
   return true
 end)
 
-CF("🪐", "ORBIT MAP", function()
-  if OM.On then
-    TLG.OrbitalMapStop()
+CF("🪐", "ORBIT", function()
+  if TLG.Orb and TLG.Orb.On then
+    TLG.OrbStop()
     return false
   else
-    TLG.OrbitalMapStart()
-    return OM.On
+    if TLG.OrbStart then TLG.OrbStart() end
+    return true
   end
 end)
 
 -- FAB GROUP 2 - Anti Stun, Buff Tools, Anti Void, Anti Orbit
 CF("💫", "ANTI STUN", function()
-  if TLG.AntiStunState.On then
-    TLG.AntiStunStop()
-    return false
-  else
-    TLG.AntiStunStart()
-    return TLG.AntiStunState.On
-  end
+  TLG.Bf = TLG.Bf or {AS=false}
+  TLG.Bf.AS = not TLG.Bf.AS
+  TLG.PNotif("💫 Anti Stun", TLG.Bf.AS and "ON" or "OFF", C.Yel)
+  return TLG.Bf.AS
 end, FHo2)
 
-CF("🔧", "VISUAL SPEED", function()
-  local state = TLG.VisualSkillSpeed
-  if not state then
-    TLG.PNotif("🔧 Visual Speed", "Módulo no disponible", C.Rd)
-    return false
-  end
-  if state.On then
-    TLG.VisualSkillSpeedStop()
-    return false
-  else
-    TLG.VisualSkillSpeedStart()
-    return state.On
-  end
+CF("🔧", "BUFF TOOL", function()
+  TLG.Bf = TLG.Bf or {Act=false}
+  TLG.Bf.Act = not TLG.Bf.Act
+  if not TLG.Bf.Act then TLG.Bf.Act = true end
+  TLG.PNotif("🔧 Buff Tools", "ON", C.Yel)
+  return true
 end, FHo2)
 
 CF("🕳️", "ANTI VOID", function()
-  if TLG.AntiVoidState.On then
-    TLG.AntiVoidStop()
+  TLG.AV = TLG.AV or {On=false}
+  if TLG.AV.On then
+    if TLG.AVStop then TLG.AVStop() end
     return false
   else
-    TLG.AntiVoidStart()
-    return TLG.AntiVoidState.On
+    if TLG.AVStart then TLG.AVStart() end
+    return true
   end
 end, FHo2)
 
-CF("🚫", "ANTI ORBIT", function()
-  if TLG.AntiOrbitState.On then
-    TLG.AntiOrbitStop()
+CF("🚫", "ANTI ORB", function()
+  if TLG.Orb and TLG.Orb.On then
+    TLG.OrbStop()
+    TLG.PNotif("🚫 Anti Orbit", "Orbit detenido", C.Yel)
     return false
   else
-    TLG.AntiOrbitStart()
-    return TLG.AntiOrbitState.On
+    TLG.PNotif("🚫 Anti Orbit", "No hay orbit activo", C.Gr)
+    return false
   end
 end, FHo2)
 
@@ -4176,7 +4162,7 @@ end)
 
 -- WATERMARK
 local WM = Instance.new("Frame", SG)
-WM.Name = "ZTB_Watermark"
+WM.Name = "TLG_Watermark"
 WM.Size = UDim2.new(0,180,0,28)
 WM.Position = UDim2.new(0,10,0,10)
 WM.BackgroundColor3 = C.BG2
@@ -4199,7 +4185,7 @@ WTx.Size = UDim2.new(1,-56,1,0)
 WTx.Position = UDim2.new(0,28,0,0)
 WTx.BackgroundTransparency = 1
 WTx.Font = Enum.Font.GothamBold
-WTx.Text = "ZTB HUB V9.4.6"
+WTx.Text = "TLG HUB V9.2"
 WTx.TextSize = 9; WTx.TextColor3 = C.Wh
 WTx.TextXAlignment = Enum.TextXAlignment.Left
 WTx.ZIndex = 51
@@ -4251,7 +4237,7 @@ if TLG._postBuild then pcall(TLG._postBuild) end
 task.spawn(function()
   pcall(function()
     local fr = Instance.new("Frame", SG)
-    fr.Name = "ZTB_Intro"
+    fr.Name = "TLG_Intro"
     fr.Size = UDim2.new(1, 0, 1, 0)
     fr.BackgroundColor3 = Color3.new(0, 0, 0)
     fr.BackgroundTransparency = 1
@@ -4264,7 +4250,7 @@ task.spawn(function()
     t1.Font = Enum.Font.GothamBold
     t1.TextSize = 34
     t1.TextColor3 = C.Yel
-    t1.Text = "💀 ZTB HUB"
+    t1.Text = "💀 TLG HUB"
     t1.TextTransparency = 1
     t1.ZIndex = 501
     local t2 = Instance.new("TextLabel", fr)
@@ -4274,7 +4260,7 @@ task.spawn(function()
     t2.Font = Enum.Font.Gotham
     t2.TextSize = 14
     t2.TextColor3 = C.Gr
-    t2.Text = "Meme Sea • V9.4.6"
+    t2.Text = "Meme Sea • V9.4.2"
     t2.TextTransparency = 1
     t2.ZIndex = 501
     local ti = TweenInfo.new(0.45)
@@ -4296,7 +4282,6 @@ pcall(function()
     {Size = W_S, Position = W_P}):Play()
 end)
 task.wait(0.9)
---==================================================
 -- ZTB RADIAL CENTRAL | Android + PC
 --==================================================
 pcall(function()
@@ -4401,6 +4386,7 @@ pcall(function()
   end
 end)
 
-TLG.PNotif("👑 ZTB HUB V9.4.7 FIXED", "💀 Radial central + hitbox visual", C.Yel)
 
-print("[ZTB HUB V9.4.7 FIXED] 💀 Cargado")
+TLG.PNotif("👑 ZTB HUB V9.4.3", "Skybox + God Orb revisado + radial central", C.Yel)
+
+print("[ZTB HUB V9.4.3] Skybox + God Orb + radial central cargado")
