@@ -1,5 +1,5 @@
 -- ZTB HUB — Meme Sea Edition
--- V9.4.7 FIXED | SKYBOX TESTER + RADIAL CENTRAL
+-- V9.4.8 | HITBOX FIX + RADIAL CENTRAL
 -- Hitbox visual segura + God Orb sin anclar el personaje
 
 local TW = game:GetService("TweenService")
@@ -405,8 +405,9 @@ TLG.AIM = AIM
 local function aimRemoveHitbox(plr)
   local ch = plr.Character
   if not ch then return end
-  local old = ch:FindFirstChild("TLG_HitboxVisual")
-  if old then pcall(function() old:Destroy() end) end
+  for _, d in ipairs(ch:GetDescendants()) do
+    if d.Name == "TLG_HitboxVisual" then pcall(function() d:Destroy() end) end
+  end
 end
 
 -- Indicador VISUAL local. No cambia el tamaño ni las colisiones del personaje.
@@ -420,11 +421,21 @@ local function aimExpandHead(plr)
   box.Name = "TLG_HitboxVisual"
   box.Adornee = h
   box.Size = h.Size + Vector3.new(0.35, 0.35, 0.35)
-  box.Transparency = AIM.ShowHitbox and 0.35 or 0.75
-  box.AlwaysOnTop = true
-  box.ZIndex = 5
+  box.Transparency = AIM.ShowHitbox and 0.6 or 0.85
+  box.AlwaysOnTop = false -- si era true, la caja se dibujaba ENCIMA y tapaba al jugador
+  box.ZIndex = 1
   box.Color3 = TLG.A()
   box.Parent = h
+end
+
+-- Solo (re)crea la caja si falta o quedó apuntando a otra parte
+local function aimNeedsVisual(plr)
+  local ch = plr.Character
+  if not ch then return false end
+  local h = ch:FindFirstChild("Head") or ch:FindFirstChild("HumanoidRootPart")
+  if not h then return false end
+  local v = h:FindFirstChild("TLG_HitboxVisual")
+  return not (v and v.Adornee == h)
 end
 
 local function aimFindTarget()
@@ -456,7 +467,7 @@ local function aimLoop()
   if not AIM.On then return end
   for _, p in ipairs(PLR:GetPlayers()) do
     if p ~= TLG.LP and p.Character then
-      if not p.Character:FindFirstChild("TLG_Hitbox") then
+      if aimNeedsVisual(p) then
         pcall(aimExpandHead, p)
       end
     end
@@ -522,9 +533,9 @@ local function applyHB(p)
   box.Adornee = h
   local sz = math.clamp(HB.Sz, 1, 50)
   box.Size = Vector3.new(sz, sz, sz)
-  box.Transparency = math.clamp(HB.Tr, 0, 1)
-  box.AlwaysOnTop = true
-  box.ZIndex = 4
+  box.Transparency = math.clamp(HB.Tr, 0.5, 1)
+  box.AlwaysOnTop = false -- no tapar al jugador
+  box.ZIndex = 1
   box.Color3 = TLG.A()
   box.Parent = h
 end
@@ -540,8 +551,14 @@ function TLG.HBStart()
       if p ~= TLG.LP then
         local ch = p.Character
         local root = ch and ch:FindFirstChild("HumanoidRootPart")
-        if root and not root:FindFirstChild("TLG_ManualHitboxVisual") then
+        local vis = root and root:FindFirstChild("TLG_ManualHitboxVisual")
+        if root and not vis then
           pcall(applyHB, p)
+        elseif vis then
+          local sz = math.clamp(HB.Sz, 1, 50)
+          if vis.Size.X ~= sz then vis.Size = Vector3.new(sz, sz, sz) end
+          local tr = math.clamp(HB.Tr, 0.5, 1)
+          if vis.Transparency ~= tr then vis.Transparency = tr end
         end
       end
     end
