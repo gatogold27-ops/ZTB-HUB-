@@ -2710,7 +2710,7 @@ do
     function(v) TLG.FugaSetHeight(v) end)
 
   Sec(PTo, "🌀 ORBITAL MAP", "🌀")
-  Lbl(PTo, "Movimiento estable: no fuerza el giro del aimbot.", C.Gr)
+  Lbl(PTo, "Movimiento estable: no fuerza el giro del personaje.", C.Gr)
 
   Tog(PTo, "Orbital Mapa", false, function(v)
     if v then TLG.OrbitalMapStart() else TLG.OrbitalMapStop() end
