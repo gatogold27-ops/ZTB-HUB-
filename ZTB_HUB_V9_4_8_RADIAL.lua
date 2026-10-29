@@ -1,5 +1,5 @@
 -- ZTB HUB — Meme Sea Edition
--- V9.5.0 | HITBOX SEPARADA + RADIAL CENTRAL
+-- V9.6.0 | COMBAT HITBOX + RADIAL CENTRAL
 -- Hitbox visual segura + God Orb sin anclar el personaje
 
 local TW = game:GetService("TweenService")
@@ -395,200 +395,115 @@ function TLG.GetStats(plr)
   return s
 end
 
--- AIMBOT — hitbox fantasma (no rompe el movimiento)
-local AIM = {
-  On = false, Conn = nil, Target = nil,
-  HeadSize = 800, MaxTargetRange = 20000, ShowHitbox = false, CharConns = {}
+-- ============================================================
+-- HITBOX (nueva, V9.6) — vive en la pestaña COMBAT
+-- Modo SEGURO (por defecto): una pieza propia por jugador dentro de una carpeta
+--   en workspace. NO toca el personaje de nadie (ni tamaño, ni colisión, ni hijos).
+-- Modo REAL: agranda el HumanoidRootPart de los demás (solo en tu cliente).
+--   Sin colisión; se restaura al apagarlo, al morir el jugador o al salir de rango.
+-- ============================================================
+local HB = {
+  On = false, Real = false, Sz = 15, Tr = 0.7, Range = 300,
+  Conn = nil, Folder = nil, Parts = {}, Orig = {},
 }
-TLG.AIM = AIM
 
-local function aimRemoveHitbox(plr)
-  local ch = plr.Character
-  if not ch then return end
-  for _, d in ipairs(ch:GetDescendants()) do
-    if d.Name == "TLG_HitboxVisual" then pcall(function() d:Destroy() end) end
-  end
-end
-
--- Indicador VISUAL local. No cambia el tamaño ni las colisiones del personaje.
-local function aimExpandHead(plr)
-  local ch = plr.Character
-  if not ch then return end
-  local h = ch:FindFirstChild("Head") or ch:FindFirstChild("HumanoidRootPart")
-  if not h then return end
-  aimRemoveHitbox(plr)
-  local box = Instance.new("BoxHandleAdornment")
-  box.Name = "TLG_HitboxVisual"
-  box.Adornee = h
-  box.Size = h.Size + Vector3.new(0.35, 0.35, 0.35)
-  box.Transparency = AIM.ShowHitbox and 0.6 or 0.85
-  box.AlwaysOnTop = false -- si era true, la caja se dibujaba ENCIMA y tapaba al jugador
-  box.ZIndex = 1
-  box.Color3 = TLG.A()
-  box.Parent = h
-end
-
--- Solo (re)crea la caja si falta o quedó apuntando a otra parte
-local function aimNeedsVisual(plr)
-  local ch = plr.Character
-  if not ch then return false end
-  local h = ch:FindFirstChild("Head") or ch:FindFirstChild("HumanoidRootPart")
-  if not h then return false end
-  if not AIM.ShowHitbox then return false end
-  local v = h:FindFirstChild("TLG_HitboxVisual")
-  return not (v and v.Adornee == h)
-end
-
-local function aimFindTarget()
-  local best, bestD = nil, math.huge
-  local mc = TLG.LP.Character
-  if not mc then return nil end
-  local mh = mc:FindFirstChild("HumanoidRootPart")
-  if not mh then return nil end
-  for _, p in ipairs(PLR:GetPlayers()) do
-    if p ~= TLG.LP then
-      local ch = p.Character
-      local hu = ch and ch:FindFirstChildOfClass("Humanoid")
-      local hb = ch and ch:FindFirstChild("TLG_Hitbox")
-      local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-      if hu and hu.Health > 0 and (hb or hrp) then
-        local pos = (hb or hrp).Position
-        local d = (pos - mh.Position).Magnitude
-        if d <= AIM.MaxTargetRange and d < bestD then
-          bestD = d
-          best = p
-        end
-      end
-    end
-  end
-  return best
-end
-
-local function aimLoop()
-  if not AIM.On then return end
-  for _, p in ipairs(PLR:GetPlayers()) do
-    if p ~= TLG.LP and p.Character then
-      if aimNeedsVisual(p) then
-        pcall(aimExpandHead, p)
-      end
-    end
-  end
-  local t = aimFindTarget()
-  AIM.Target = t
-  if not t then return end
-  -- Do not rotate/move the local character here.
-  -- The previous Heartbeat CFrame write fought Orbital Map and caused
-  -- movement/orbit jitter. The hitbox remains available without forcing
-  -- the player's HumanoidRootPart to face the target.
-  return
-end
-
-function TLG.AIM_Start()
-  if AIM.On then return end
-  AIM.On = true
-  if AIM.ShowHitbox then
-    for _, p in ipairs(PLR:GetPlayers()) do
-      if p ~= TLG.LP then pcall(aimExpandHead, p) end
-    end
-  end
-  AIM.CharConns = AIM.CharConns or {}
-  for _, p in ipairs(PLR:GetPlayers()) do
-    if p ~= TLG.LP then
-      AIM.CharConns[p] = p.CharacterAdded:Connect(function()
-        if AIM.On and AIM.ShowHitbox then task.wait(0.3); pcall(aimExpandHead, p) end
-      end)
-    end
-  end
-  AIM.Conn = RS.Heartbeat:Connect(aimLoop)
-  TLG.PNotif("🎯 Hitbox", "✅ "..AIM.HeadSize, C.Grn)
-end
-
-function TLG.AIM_Stop()
-  if not AIM.On then return end
-  AIM.On = false
-  if AIM.Conn then
-    pcall(function() AIM.Conn:Disconnect() end); AIM.Conn = nil
-  end
-  if AIM.CharConns then
-    for _, c in pairs(AIM.CharConns) do
-      pcall(function() c:Disconnect() end)
-    end
-    AIM.CharConns = {}
-  end
-  for _, p in ipairs(PLR:GetPlayers()) do
-    if p ~= TLG.LP then pcall(aimRemoveHitbox, p) end
-  end
-  AIM.Target = nil
-  TLG.PNotif("🎯 Hitbox", "❌ Desactivado", C.Rd)
-end
-
--- HITBOX MANUAL V3: pieza SEPARADA que sigue al HumanoidRootPart de los demás.
--- NO modifica el personaje real (tamaño, colisión, masa, welds) ni su animación.
--- La pieza está anclada, sin colisión y sin joints: no entra en la física del personaje.
-local HB = {On = false, Sz = 15, Tr = 0.7, Conn = nil, Parts = {}}
-
-local function hbRemove(p)
+local function hbFree(p)
   local part = HB.Parts[p]
   HB.Parts[p] = nil
   if part then pcall(function() part:Destroy() end) end
+  local o = HB.Orig[p]
+  HB.Orig[p] = nil
+  if o and o.part and o.part.Parent then
+    pcall(function()
+      o.part.Size = o.Size
+      o.part.Transparency = o.Transparency
+      o.part.CanCollide = o.CanCollide
+      o.part.Color = o.Color
+    end)
+  end
 end
 
-local function hbMake(p, ch)
-  local part = Instance.new("Part")
-  part.Name = "TLG_Hitbox"
-  part.Anchored = true
-  part.CanCollide = false
-  part.CanTouch = true
-  part.CanQuery = true
-  part.Massless = true
-  part.CastShadow = false
-  part.Material = Enum.Material.SmoothPlastic
-  part.Locked = true
-  part.Parent = ch
-  HB.Parts[p] = part
-  return part
+local function hbClear()
+  local list = {}
+  for p in pairs(HB.Parts) do list[#list + 1] = p end
+  for p in pairs(HB.Orig) do list[#list + 1] = p end
+  for _, p in ipairs(list) do hbFree(p) end
+  HB.Parts, HB.Orig = {}, {}
 end
 
-local function applyHB(p)
-  if p == TLG.LP then return end
+local function hbApply(p, mh)
   local ch = p.Character
   local h = ch and ch:FindFirstChild("HumanoidRootPart")
   local hu = ch and ch:FindFirstChildOfClass("Humanoid")
-  if not h or not hu or hu.Health <= 0 then hbRemove(p); return end
-  local part = HB.Parts[p]
-  if part and (not part.Parent or part.Parent ~= ch) then hbRemove(p); part = nil end
-  if not part then part = hbMake(p, ch) end
+  if not (h and hu and hu.Health > 0) or (h.Position - mh.Position).Magnitude > HB.Range then
+    hbFree(p); return
+  end
   local sz = math.clamp(HB.Sz, 1, 50)
-  part.Size = Vector3.new(sz, sz, sz)
-  part.Transparency = math.clamp(HB.Tr, 0, 1)
-  part.Color = TLG.A()
-  part.CFrame = h.CFrame
+  local size = Vector3.new(sz, sz, sz)
+  if HB.Real then
+    if HB.Parts[p] then pcall(function() HB.Parts[p]:Destroy() end); HB.Parts[p] = nil end
+    local o = HB.Orig[p]
+    if o and o.part ~= h then hbFree(p); o = nil end -- el personaje se regeneró
+    if not o then
+      HB.Orig[p] = {part = h, Size = h.Size, Transparency = h.Transparency,
+        CanCollide = h.CanCollide, Color = h.Color}
+    end
+    if h.Size ~= size then h.Size = size end
+    h.CanCollide = false
+    h.Transparency = HB.Tr
+    h.Color = TLG.A()
+  else
+    if HB.Orig[p] then hbFree(p) end
+    local part = HB.Parts[p]
+    if not part or not part.Parent then
+      part = Instance.new("Part")
+      part.Name = "H_" .. p.UserId
+      part.Anchored = true
+      part.CanCollide = false
+      part.CanTouch = false
+      part.CanQuery = false
+      part.CastShadow = false
+      part.Locked = true
+      part.Material = Enum.Material.SmoothPlastic
+      part.Parent = HB.Folder
+      HB.Parts[p] = part
+    end
+    part.Size = size
+    part.Transparency = HB.Tr
+    part.Color = TLG.A()
+    part.CFrame = h.CFrame
+  end
 end
 
 function TLG.HBStart()
   if HB.Conn then return end
   HB.On = true
-  HB.Conn = RS.Heartbeat:Connect(function()
+  HB.Folder = Instance.new("Folder")
+  HB.Folder.Name = "TLG_Hitboxes"
+  HB.Folder.Parent = workspace
+  HB.Conn = RS.RenderStepped:Connect(function()
     if not HB.On then return end
+    local mc = TLG.LP.Character
+    local mh = mc and mc:FindFirstChild("HumanoidRootPart")
+    if not mh then return end
     for _, p in ipairs(PLR:GetPlayers()) do
-      if p ~= TLG.LP then pcall(applyHB, p) end
+      if p ~= TLG.LP then pcall(hbApply, p, mh) end
     end
-    for p in pairs(HB.Parts) do
-      if not p.Parent then hbRemove(p) end
-    end
+    for p in pairs(HB.Parts) do if not p.Parent then hbFree(p) end end
+    for p in pairs(HB.Orig) do if not p.Parent then hbFree(p) end end
   end)
 end
 
 function TLG.HBStop()
   HB.On = false
   if HB.Conn then pcall(function() HB.Conn:Disconnect() end); HB.Conn = nil end
-  for p in pairs(HB.Parts) do hbRemove(p) end
-  HB.Parts = {}
-  for _, p in ipairs(PLR:GetPlayers()) do
-    local ch = p.Character
-    local o = ch and ch:FindFirstChild("TLG_Hitbox")
-    if o then pcall(function() o:Destroy() end) end
-  end
+  hbClear()
+  if HB.Folder then pcall(function() HB.Folder:Destroy() end); HB.Folder = nil end
+end
+
+function TLG.HBSetReal(v)
+  HB.Real = v and true or false
+  hbClear() -- el siguiente frame reaplica en el modo elegido
 end
 
 -- GOD ORB
@@ -1021,7 +936,6 @@ function TLG.Panic()
   pcall(function() TLG.HBStop() end)
   pcall(function() TLG.GOS() end)
   pcall(function() TLG.SpS() end)
-  pcall(function() TLG.AIM_Stop() end)
   pcall(function() TLG.ESPStop() end)
   pcall(function() TLG.AntiVoidStop() end)
   pcall(function() TLG.AntiFlingStop() end)
@@ -1933,7 +1847,6 @@ TLG.Btn = Btn
 
 local PInfo = Tab("Info", "📊")
 local PCb = Tab("Combat", "⚔️")
-local PAb = Tab("Aimbot", "🎯")
 local PFl = Tab("Fly", "✈")
 local PIs = Tab("Islands", "🏝️")
 local PSc = Tab("Scripts", "📜")
@@ -1955,7 +1868,6 @@ end
 
 TLG.PInfo = PInfo
 TLG.PCb = PCb
-TLG.PAb = PAb
 TLG.PFl = PFl
 TLG.PIs = PIs
 TLG.PSc = PSc
@@ -2249,9 +2161,12 @@ end
 
 -- COMBAT TAB
 do
-  Sec(PCb, "🔵 HITBOX MANUAL", "🔵")
+  Sec(PCb, "🎯 HITBOX", "🎯")
   Tog(PCb, "Activar Hitbox", false, function(v)
     if v then TLG.HBStart() else TLG.HBStop() end
+  end)
+  Tog(PCb, "Modo real (agranda el cuerpo)", false, function(v)
+    TLG.HBSetReal(v)
   end)
   local function addArrowAdjust(labelText, initial, minValue, maxValue, step, formatter, callback)
     local value = initial
@@ -2305,12 +2220,13 @@ do
     arrow("▶", 0.92, 1)
     refresh()
   end
-  addArrowAdjust("Ajustar tamaño", HB.Sz, 1, 50, 1, function(v) return tostring(v) end,
+  addArrowAdjust("Tamaño", HB.Sz, 1, 50, 1, function(v) return tostring(v) end,
     function(v) HB.Sz = math.clamp(v, 1, 50) end)
-  addArrowAdjust("Ajustar transparencia", 70, 0, 100, 5, function(v) return tostring(v) .. "%" end,
+  addArrowAdjust("Transparencia", 70, 0, 100, 5, function(v) return tostring(v) .. "%" end,
     function(v) HB.Tr = math.clamp(v, 0, 100) / 100 end)
-  Lbl(PCb, "Hitbox separada: una pieza que sigue a cada jugador sin tocar su personaje. Tamaño máx 50.", C.Gr)
-  Lbl(PCb, "Para el aimbot, andá al tab 🎯 Aimbot.", C.Yel)
+  addArrowAdjust("Rango (studs)", HB.Range, 50, 2000, 50, function(v) return tostring(v) end,
+    function(v) HB.Range = math.clamp(v, 50, 2000) end)
+  Lbl(PCb, "Seguro: pieza aparte, no toca a nadie. Real: agranda el cuerpo en tu cliente (solo sirve si el juego detecta golpes en tu lado).", C.Gr)
 
   Sec(PCb, "📷 CAMERA FOV", "📷")
 
@@ -2380,28 +2296,6 @@ do
   end)
 
   Lbl(PCb, "Asistente visual: el FOV se mantiene activo después de la cámara del juego.", C.Cyan)
-end
-
--- AIMBOT TAB
-do
-  Sec(PAb, "🎯 HITBOX FANTASMA", "🎯")
-
-  local AB
-  AB = Btn(PAb, "🎯 ACTIVAR HITBOX 800", C.Yel, function()
-    if AIM.On then
-      TLG.AIM_Stop()
-      AB.Text = "🎯 ACTIVAR HITBOX 800"
-    else
-      AIM.MaxTargetRange = 10000
-      TLG.AIM_Start()
-      AB.Text = "🛑 DESACTIVAR HITBOX 800"
-    end
-  end)
-  AB.Size = UDim2.new(1,0,0,54)
-  AB.TextSize = 14
-
-  Lbl(PAb, "Rango de selección: 10,000 studs.", C.Yel)
-  Lbl(PAb, "Este módulo crea una hitbox local; no dirige la cámara.", C.Cyan)
 end
 
 -- FLY TAB
@@ -2855,7 +2749,7 @@ do
     function(v) TLG.FugaSetHeight(v) end)
 
   Sec(PTo, "🌀 ORBITAL MAP", "🌀")
-  Lbl(PTo, "Movimiento estable: no fuerza el giro del aimbot.", C.Gr)
+  Lbl(PTo, "Movimiento estable: no fuerza el giro de la cámara.", C.Gr)
 
   Tog(PTo, "Orbital Mapa", false, function(v)
     if v then TLG.OrbitalMapStart() else TLG.OrbitalMapStop() end
