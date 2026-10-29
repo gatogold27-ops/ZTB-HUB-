@@ -1,5 +1,5 @@
 -- ZTB HUB — Meme Sea Edition
--- V9.4.8 | HITBOX FIX + RADIAL CENTRAL
+-- V9.4.9 | HITBOX REAL + RADIAL CENTRAL
 -- Hitbox visual segura + God Orb sin anclar el personaje
 
 local TW = game:GetService("TweenService")
@@ -519,60 +519,75 @@ function TLG.AIM_Stop()
   TLG.PNotif("🎯 Hitbox", "❌ Desactivado", C.Rd)
 end
 
--- HITBOX MANUAL: solo contorno visual; no redimensiona personajes.
-local HB = {On = false, Sz = 5, Tr = 0.35, Conn = nil, Original = {}}
+-- HITBOX MANUAL REAL: agranda el HumanoidRootPart de los demás (solo en tu cliente).
+-- CanCollide=false y Massless=true => NO te empuja ni frena tu personaje,
+-- y no toca la animación ni el movimiento de nadie (solo cambia Size/Transparency/Color).
+local HB = {On = false, Sz = 15, Tr = 0.7, Conn = nil, Original = {}, CharConns = {}, Added = nil}
+
+local function hbRestorePart(part)
+  local o = HB.Original[part]
+  if not o then return end
+  HB.Original[part] = nil
+  if part and part.Parent then
+    pcall(function()
+      part.Size = o.Size
+      part.Transparency = o.Transparency
+      part.CanCollide = o.CanCollide
+      part.Massless = o.Massless
+      part.Color = o.Color
+      part.Material = o.Material
+    end)
+  end
+end
+
 local function applyHB(p)
   if p == TLG.LP then return end
   local ch = p.Character; if not ch then return end
   local h = ch:FindFirstChild("HumanoidRootPart")
-  if not h then return end
-  local old = h:FindFirstChild("TLG_ManualHitboxVisual")
-  if old then old:Destroy() end
-  local box = Instance.new("BoxHandleAdornment")
-  box.Name = "TLG_ManualHitboxVisual"
-  box.Adornee = h
+  if not h or not h:IsA("BasePart") then return end
+  local hu = ch:FindFirstChildOfClass("Humanoid")
+  if hu and hu.Health <= 0 then hbRestorePart(h); return end
+  if not HB.Original[h] then
+    HB.Original[h] = {
+      Size = h.Size, Transparency = h.Transparency, CanCollide = h.CanCollide,
+      Massless = h.Massless, Color = h.Color, Material = h.Material,
+    }
+  end
   local sz = math.clamp(HB.Sz, 1, 50)
-  box.Size = Vector3.new(sz, sz, sz)
-  box.Transparency = math.clamp(HB.Tr, 0.5, 1)
-  box.AlwaysOnTop = false -- no tapar al jugador
-  box.ZIndex = 1
-  box.Color3 = TLG.A()
-  box.Parent = h
+  local want = Vector3.new(sz, sz, sz)
+  pcall(function()
+    if h.Size ~= want then h.Size = want end
+    h.CanCollide = false
+    h.Massless = true
+    h.Transparency = math.clamp(HB.Tr, 0, 1)
+    h.Color = TLG.A()
+    h.Material = Enum.Material.SmoothPlastic
+  end)
 end
+
 function TLG.HBStart()
   if HB.Conn then return end
   HB.On = true
   for _, p in ipairs(PLR:GetPlayers()) do
     if p ~= TLG.LP then pcall(applyHB, p) end
   end
+  -- Se reaplica cada frame porque el juego puede resetear el tamaño.
   HB.Conn = RS.Heartbeat:Connect(function()
     if not HB.On then return end
     for _, p in ipairs(PLR:GetPlayers()) do
-      if p ~= TLG.LP then
-        local ch = p.Character
-        local root = ch and ch:FindFirstChild("HumanoidRootPart")
-        local vis = root and root:FindFirstChild("TLG_ManualHitboxVisual")
-        if root and not vis then
-          pcall(applyHB, p)
-        elseif vis then
-          local sz = math.clamp(HB.Sz, 1, 50)
-          if vis.Size.X ~= sz then vis.Size = Vector3.new(sz, sz, sz) end
-          local tr = math.clamp(HB.Tr, 0.5, 1)
-          if vis.Transparency ~= tr then vis.Transparency = tr end
-        end
-      end
+      if p ~= TLG.LP then pcall(applyHB, p) end
+    end
+    -- limpia referencias de personajes que ya no existen
+    for part in pairs(HB.Original) do
+      if not part.Parent then HB.Original[part] = nil end
     end
   end)
 end
+
 function TLG.HBStop()
   HB.On = false
   if HB.Conn then pcall(function() HB.Conn:Disconnect() end); HB.Conn = nil end
-  for _, p in ipairs(PLR:GetPlayers()) do
-    local ch = p.Character
-    local root = ch and ch:FindFirstChild("HumanoidRootPart")
-    local visual = root and root:FindFirstChild("TLG_ManualHitboxVisual")
-    if visual then pcall(function() visual:Destroy() end) end
-  end
+  for part in pairs(HB.Original) do hbRestorePart(part) end
   HB.Original = {}
 end
 
@@ -2292,9 +2307,9 @@ do
   end
   addArrowAdjust("Ajustar tamaño", HB.Sz, 1, 50, 1, function(v) return tostring(v) end,
     function(v) HB.Sz = math.clamp(v, 1, 50) end)
-  addArrowAdjust("Ajustar transparencia", 50, 0, 100, 5, function(v) return tostring(v) .. "%" end,
+  addArrowAdjust("Ajustar transparencia", 70, 0, 100, 5, function(v) return tostring(v) .. "%" end,
     function(v) HB.Tr = math.clamp(v, 0, 100) / 100 end)
-  Lbl(PCb, "Hitbox manual: tamaño máximo 50. Las flechas ajustan tamaño y transparencia.", C.Gr)
+  Lbl(PCb, "Hitbox REAL: agranda el cuerpo (HRP) de los demás en tu cliente, sin bloquearte. Tamaño máx 50.", C.Gr)
   Lbl(PCb, "Para el aimbot, andá al tab 🎯 Aimbot.", C.Yel)
 
   Sec(PCb, "📷 CAMERA FOV", "📷")
