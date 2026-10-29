@@ -1,5 +1,5 @@
 -- ZTB HUB — Meme Sea Edition
--- V9.4.9 | HITBOX REAL + RADIAL CENTRAL
+-- V9.5.0 | HITBOX SEPARADA + RADIAL CENTRAL
 -- Hitbox visual segura + God Orb sin anclar el personaje
 
 local TW = game:GetService("TweenService")
@@ -434,6 +434,7 @@ local function aimNeedsVisual(plr)
   if not ch then return false end
   local h = ch:FindFirstChild("Head") or ch:FindFirstChild("HumanoidRootPart")
   if not h then return false end
+  if not AIM.ShowHitbox then return false end
   local v = h:FindFirstChild("TLG_HitboxVisual")
   return not (v and v.Adornee == h)
 end
@@ -485,14 +486,16 @@ end
 function TLG.AIM_Start()
   if AIM.On then return end
   AIM.On = true
-  for _, p in ipairs(PLR:GetPlayers()) do
-    if p ~= TLG.LP then pcall(aimExpandHead, p) end
+  if AIM.ShowHitbox then
+    for _, p in ipairs(PLR:GetPlayers()) do
+      if p ~= TLG.LP then pcall(aimExpandHead, p) end
+    end
   end
   AIM.CharConns = AIM.CharConns or {}
   for _, p in ipairs(PLR:GetPlayers()) do
     if p ~= TLG.LP then
       AIM.CharConns[p] = p.CharacterAdded:Connect(function()
-        if AIM.On then task.wait(0.3); pcall(aimExpandHead, p) end
+        if AIM.On and AIM.ShowHitbox then task.wait(0.3); pcall(aimExpandHead, p) end
       end)
     end
   end
@@ -519,67 +522,59 @@ function TLG.AIM_Stop()
   TLG.PNotif("🎯 Hitbox", "❌ Desactivado", C.Rd)
 end
 
--- HITBOX MANUAL REAL: agranda el HumanoidRootPart de los demás (solo en tu cliente).
--- CanCollide=false y Massless=true => NO te empuja ni frena tu personaje,
--- y no toca la animación ni el movimiento de nadie (solo cambia Size/Transparency/Color).
-local HB = {On = false, Sz = 15, Tr = 0.7, Conn = nil, Original = {}, CharConns = {}, Added = nil}
+-- HITBOX MANUAL V3: pieza SEPARADA que sigue al HumanoidRootPart de los demás.
+-- NO modifica el personaje real (tamaño, colisión, masa, welds) ni su animación.
+-- La pieza está anclada, sin colisión y sin joints: no entra en la física del personaje.
+local HB = {On = false, Sz = 15, Tr = 0.7, Conn = nil, Parts = {}}
 
-local function hbRestorePart(part)
-  local o = HB.Original[part]
-  if not o then return end
-  HB.Original[part] = nil
-  if part and part.Parent then
-    pcall(function()
-      part.Size = o.Size
-      part.Transparency = o.Transparency
-      part.CanCollide = o.CanCollide
-      part.Massless = o.Massless
-      part.Color = o.Color
-      part.Material = o.Material
-    end)
-  end
+local function hbRemove(p)
+  local part = HB.Parts[p]
+  HB.Parts[p] = nil
+  if part then pcall(function() part:Destroy() end) end
+end
+
+local function hbMake(p, ch)
+  local part = Instance.new("Part")
+  part.Name = "TLG_Hitbox"
+  part.Anchored = true
+  part.CanCollide = false
+  part.CanTouch = true
+  part.CanQuery = true
+  part.Massless = true
+  part.CastShadow = false
+  part.Material = Enum.Material.SmoothPlastic
+  part.Locked = true
+  part.Parent = ch
+  HB.Parts[p] = part
+  return part
 end
 
 local function applyHB(p)
   if p == TLG.LP then return end
-  local ch = p.Character; if not ch then return end
-  local h = ch:FindFirstChild("HumanoidRootPart")
-  if not h or not h:IsA("BasePart") then return end
-  local hu = ch:FindFirstChildOfClass("Humanoid")
-  if hu and hu.Health <= 0 then hbRestorePart(h); return end
-  if not HB.Original[h] then
-    HB.Original[h] = {
-      Size = h.Size, Transparency = h.Transparency, CanCollide = h.CanCollide,
-      Massless = h.Massless, Color = h.Color, Material = h.Material,
-    }
-  end
+  local ch = p.Character
+  local h = ch and ch:FindFirstChild("HumanoidRootPart")
+  local hu = ch and ch:FindFirstChildOfClass("Humanoid")
+  if not h or not hu or hu.Health <= 0 then hbRemove(p); return end
+  local part = HB.Parts[p]
+  if part and (not part.Parent or part.Parent ~= ch) then hbRemove(p); part = nil end
+  if not part then part = hbMake(p, ch) end
   local sz = math.clamp(HB.Sz, 1, 50)
-  local want = Vector3.new(sz, sz, sz)
-  pcall(function()
-    if h.Size ~= want then h.Size = want end
-    h.CanCollide = false
-    h.Massless = true
-    h.Transparency = math.clamp(HB.Tr, 0, 1)
-    h.Color = TLG.A()
-    h.Material = Enum.Material.SmoothPlastic
-  end)
+  part.Size = Vector3.new(sz, sz, sz)
+  part.Transparency = math.clamp(HB.Tr, 0, 1)
+  part.Color = TLG.A()
+  part.CFrame = h.CFrame
 end
 
 function TLG.HBStart()
   if HB.Conn then return end
   HB.On = true
-  for _, p in ipairs(PLR:GetPlayers()) do
-    if p ~= TLG.LP then pcall(applyHB, p) end
-  end
-  -- Se reaplica cada frame porque el juego puede resetear el tamaño.
   HB.Conn = RS.Heartbeat:Connect(function()
     if not HB.On then return end
     for _, p in ipairs(PLR:GetPlayers()) do
       if p ~= TLG.LP then pcall(applyHB, p) end
     end
-    -- limpia referencias de personajes que ya no existen
-    for part in pairs(HB.Original) do
-      if not part.Parent then HB.Original[part] = nil end
+    for p in pairs(HB.Parts) do
+      if not p.Parent then hbRemove(p) end
     end
   end)
 end
@@ -587,8 +582,13 @@ end
 function TLG.HBStop()
   HB.On = false
   if HB.Conn then pcall(function() HB.Conn:Disconnect() end); HB.Conn = nil end
-  for part in pairs(HB.Original) do hbRestorePart(part) end
-  HB.Original = {}
+  for p in pairs(HB.Parts) do hbRemove(p) end
+  HB.Parts = {}
+  for _, p in ipairs(PLR:GetPlayers()) do
+    local ch = p.Character
+    local o = ch and ch:FindFirstChild("TLG_Hitbox")
+    if o then pcall(function() o:Destroy() end) end
+  end
 end
 
 -- GOD ORB
@@ -2309,7 +2309,7 @@ do
     function(v) HB.Sz = math.clamp(v, 1, 50) end)
   addArrowAdjust("Ajustar transparencia", 70, 0, 100, 5, function(v) return tostring(v) .. "%" end,
     function(v) HB.Tr = math.clamp(v, 0, 100) / 100 end)
-  Lbl(PCb, "Hitbox REAL: agranda el cuerpo (HRP) de los demás en tu cliente, sin bloquearte. Tamaño máx 50.", C.Gr)
+  Lbl(PCb, "Hitbox separada: una pieza que sigue a cada jugador sin tocar su personaje. Tamaño máx 50.", C.Gr)
   Lbl(PCb, "Para el aimbot, andá al tab 🎯 Aimbot.", C.Yel)
 
   Sec(PCb, "📷 CAMERA FOV", "📷")
