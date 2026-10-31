@@ -1,5 +1,4 @@
--- ZTB HUB — Meme Sea Edition (Con Orbit Player Integrado)
--- Ghost Hitbox + Fly Boost + FABs visibles + Orbit Player Funcional
+-- ZTB HUB — Meme Sea Edition (Con Orbit Player & FOV Aim Assist Estilo Blox Fruits)
 ​local TW = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 local PLR = game:GetService("Players")
@@ -66,7 +65,7 @@ TLGKeySystem.Verified = true
 return true
 end
 ​local parent = TLG.SP
-if not parent then return false end
+if not parent me then return false end
 ​local old = parent:FindFirstChild("TLG_KeySystem")
 if old then old:Destroy() end
 ​local gui = Instance.new("ScreenGui")
@@ -153,7 +152,7 @@ return
 end
 ​local names = {"TLG_GoldV4","TLG_GoldV5","TLG_GoldV6","TLG_GoldV7",
 "TLG_GoldV8","ZTB_HUB_Menu","TLG_HideBtn","TLG_Express","TLG_FAB","TLG_FAB_Float",
-"ZTB_Intro","ZTB_Watermark","TLG_FugaFAB"}
+"ZTB_Intro","ZTB_Watermark","TLG_FugaFAB","ZTB_AimAssistGUI"}
 for _, n in ipairs(names) do
 pcall(function() local o = TLG.SP:FindFirstChild(n); if o then o:Destroy() end end)
 pcall(function() local o = CG:FindFirstChild(n); if o then o:Destroy() end end)
@@ -352,7 +351,138 @@ end
 end)
 return s
 end
-​-- AIMBOT — hitbox fantasma
+​--==================================================
+-- VISUAL FOV AIM ASSIST (ESTILO BLOX FRUITS DE LA IMAGEN)
+--==================================================
+local AimAssist = {
+Enabled = false,
+FOVRadius = 160,
+Smoothness = 0.15,
+ShowFOV = true,
+ShowTracer = true,
+ShowDot = true,
+TargetPart = "HumanoidRootPart",
+LockCamera = true,
+Connection = nil,
+Target = nil
+}
+TLG.AimAssist = AimAssist
+​local AimGUI = Instance.new("ScreenGui")
+AimGUI.Name = "ZTB_AimAssistGUI"
+AimGUI.ResetOnSpawn = false
+AimGUI.DisplayOrder = 150
+AimGUI.IgnoreGuiInset = true
+pcall(function() AimGUI.Parent = TLG.SP end)
+if not AimGUI.Parent then pcall(function() AimGUI.Parent = CG end) end
+​local FOVCircle = Instance.new("Frame", AimGUI)
+FOVCircle.Name = "FOVCircle"
+FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+FOVCircle.Position = UDim2.fromScale(0.5, 0.5)
+FOVCircle.Size = UDim2.fromOffset(AimAssist.FOVRadius * 2, AimAssist.FOVRadius * 2)
+FOVCircle.BackgroundTransparency = 1
+FOVCircle.Visible = false
+​local FOVStroke = Instance.new("UIStroke", FOVCircle)
+FOVStroke.Color = Color3.fromRGB(255, 215, 0)
+FOVStroke.Thickness = 2
+FOVStroke.Transparency = 0.3
+​local FOVCorner = Instance.new("UICorner", FOVCircle)
+FOVCorner.CornerRadius = UDim.new(1, 0)
+​local TracerLine = Instance.new("Frame", AimGUI)
+TracerLine.Name = "TracerLine"
+TracerLine.AnchorPoint = Vector2.new(0.5, 0.5)
+TracerLine.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+TracerLine.BorderSizePixel = 0
+TracerLine.Visible = false
+​local TargetDot = Instance.new("Frame", AimGUI)
+TargetDot.Name = "TargetDot"
+TargetDot.Size = UDim2.fromOffset(10, 10)
+TargetDot.AnchorPoint = Vector2.new(0.5, 0.5)
+TargetDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TargetDot.BorderSizePixel = 0
+TargetDot.Visible = false
+Instance.new("UICorner", TargetDot).CornerRadius = UDim.new(1, 0)
+local DotStroke = Instance.new("UIStroke", TargetDot)
+DotStroke.Color = Color3.fromRGB(0, 0, 0)
+DotStroke.Thickness = 2
+​local function getClosestPlayerInFOV()
+local center = Vector2.new(TLG.Cam.ViewportSize.X / 2, TLG.Cam.ViewportSize.Y / 2)
+local closestPlayer = nil
+local shortestDist = AimAssist.FOVRadius
+​for _, player in ipairs(PLR:GetPlayers()) do
+if player ~= TLG.LP and player.Character then
+local char = player.Character
+local hum = char:FindFirstChildOfClass("Humanoid")
+local part = char:FindFirstChild(AimAssist.TargetPart) or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
+​if hum and hum.Health > 0 and part then
+local screenPos, onScreen = TLG.Cam:WorldToViewportPoint(part.Position)
+if onScreen then
+local screenVec = Vector2.new(screenPos.X, screenPos.Y)
+local distFromCenter = (screenVec - center).Magnitude
+​if distFromCenter <= shortestDist then
+shortestDist = distFromCenter
+closestPlayer = {Player = player, Part = part, ScreenPos = screenVec, WorldPos = part.Position}
+end
+end
+end
+end
+end
+return closestPlayer
+end
+​function TLG.AimAssistStart()
+if AimAssist.Enabled then return end
+AimAssist.Enabled = true
+FOVCircle.Visible = AimAssist.ShowFOV
+​AimAssist.Connection = RS.RenderStepped:Connect(function()
+if not AimAssist.Enabled then return end
+​FOVCircle.Size = UDim2.fromOffset(AimAssist.FOVRadius * 2, AimAssist.FOVRadius * 2)
+FOVCircle.Position = UDim2.fromScale(0.5, 0.5)
+​local targetData = getClosestPlayerInFOV()
+local center = Vector2.new(TLG.Cam.ViewportSize.X / 2, TLG.Cam.ViewportSize.Y / 2)
+​if targetData then
+AimAssist.Target = targetData.Player
+​if AimAssist.ShowDot then
+TargetDot.Position = UDim2.fromOffset(targetData.ScreenPos.X, targetData.ScreenPos.Y)
+TargetDot.Visible = true
+else
+TargetDot.Visible = false
+end
+​if AimAssist.ShowTracer then
+local delta = targetData.ScreenPos - center
+local distance = delta.Magnitude
+local angle = math.atan2(delta.Y, delta.X)
+​TracerLine.Size = UDim2.new(0, distance, 0, 2)
+TracerLine.Position = UDim2.fromOffset(center.X + delta.X / 2, center.Y + delta.Y / 2)
+TracerLine.Rotation = math.deg(angle)
+TracerLine.Visible = true
+else
+TracerLine.Visible = false
+end
+​if AimAssist.LockCamera then
+local currentCF = TLG.Cam.CFrame
+local targetCF = CFrame.new(currentCF.Position, targetData.WorldPos)
+TLG.Cam.CFrame = currentCF:Lerp(targetCF, AimAssist.Smoothness)
+end
+else
+AimAssist.Target = nil
+TargetDot.Visible = false
+TracerLine.Visible = false
+end
+end)
+TLG.PNotif("🎯 Aim Assist", "✅ Activado con FOV", C.Grn)
+end
+​function TLG.AimAssistStop()
+AimAssist.Enabled = false
+if AimAssist.Connection then
+pcall(function() AimAssist.Connection:Disconnect() end)
+AimAssist.Connection = nil
+end
+FOVCircle.Visible = false
+TargetDot.Visible = false
+TracerLine.Visible = false
+AimAssist.Target = nil
+TLG.PNotif("🎯 Aim Assist", "❌ Desactivado", C.Rd)
+end
+​-- AIMBOT — Hitbox Fantasma
 local AIM = {
 On = false, Conn = nil, Target = nil,
 HeadSize = 800, MaxTargetRange = 20000, ShowHitbox = false, CharConns = {}
@@ -562,7 +692,7 @@ end)
 end)
 end
 ​-- ==================================================
--- NUEVO ORBIT PLAYER (ESTILO INFINITE YIELD)
+-- ORBIT PLAYER (ESTILO INFINITE YIELD)
 -- ==================================================
 local OrbitPlayer = {
 On = false,
@@ -975,6 +1105,7 @@ pcall(function() TLG.GOS() end)
 pcall(function() TLG.OrbitPlayerStop() end)
 pcall(function() TLG.SpS() end)
 pcall(function() TLG.AIM_Stop() end)
+pcall(function() TLG.AimAssistStop() end)
 pcall(function() TLG.ESPStop() end)
 pcall(function() TLG.AntiVoidStop() end)
 pcall(function() TLG.AntiFlingStop() end)
@@ -1284,7 +1415,7 @@ end
 ​local W = Instance.new("Frame", SG)
 W.Size = W_S
 W.AnchorPoint = Vector2.new(0.5,0.5)
-W.Position = UDim2.new(0.5,0,1,W_S.Y.Offset)
+W.Position = UDim2.new(0.5,0,0.5,0)
 W.BackgroundColor3 = C.BG
 W.BorderSizePixel = 0
 W.ClipsDescendants = true
@@ -1446,11 +1577,66 @@ Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0,7)
 local CloseStroke = Instance.new("UIStroke", CloseBtn)
 CloseStroke.Color = Color3.fromRGB(205,112,55)
 CloseStroke.Transparency = 0.25
-CloseBtn.Activated:Connect(function()
-pcall(function() W.Visible = false end)
-pcall(function() WM.Visible = false end)
+​local function toggleMenuVis()
+W.Visible = not W.Visible
+end
+​CloseBtn.Activated:Connect(function()
+W.Visible = false
 end)
-​local DragS = {active=false, start=nil, pos=nil}
+​--==================================================
+-- BOTÓN FLOTANTE PRINCIPAL (MENÚ MENU)
+--==================================================
+local ToggleFAB = Instance.new("TextButton", SG)
+ToggleFAB.Name = "ZTB_ToggleFAB"
+ToggleFAB.Size = UDim2.new(0, 38, 0, 38)
+ToggleFAB.Position = UDim2.new(0, 15, 0.5, -19)
+ToggleFAB.BackgroundColor3 = C.BG2
+ToggleFAB.Text = "💀"
+ToggleFAB.TextSize = 18
+ToggleFAB.TextColor3 = C.Yel
+ToggleFAB.BorderSizePixel = 0
+ToggleFAB.ZIndex = 999
+ToggleFAB.Active = true
+​Instance.new("UICorner", ToggleFAB).CornerRadius = UDim.new(1, 0)
+local fabStroke = Instance.new("UIStroke", ToggleFAB)
+fabStroke.Color = C.Yel
+fabStroke.Thickness = 1.5
+TLG.PGlow(fabStroke, 0.1, 0.6, 1.2)
+​local fabDrag = {active = false, start = nil, pos = nil, moved = false}
+ToggleFAB.InputBegan:Connect(function(i)
+if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+fabDrag.active = true
+fabDrag.start = i.Position
+fabDrag.pos = ToggleFAB.Position
+fabDrag.moved = false
+end
+end)
+​UIS.InputChanged:Connect(function(i)
+if fabDrag.active and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+local delta = i.Position - fabDrag.start
+if delta.Magnitude > 5 then
+fabDrag.moved = true
+end
+ToggleFAB.Position = UDim2.new(
+fabDrag.pos.X.Scale,
+fabDrag.pos.X.Offset + delta.X,
+fabDrag.pos.Y.Scale,
+fabDrag.pos.Y.Offset + delta.Y
+)
+end
+end)
+​UIS.InputEnded:Connect(function(i)
+if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+fabDrag.active = false
+end
+end)
+​ToggleFAB.Activated:Connect(function()
+if not fabDrag.moved then
+toggleMenuVis()
+end
+end)
+​-- Sistema de arrastre para la ventana principal
+local DragS = {active=false, start=nil, pos=nil}
 local function makeDrag(handle)
 handle.InputBegan:Connect(function(i)
 if i.UserInputType == Enum.UserInputType.MouseButton1
@@ -1513,32 +1699,12 @@ TLy.VerticalAlignment = Enum.VerticalAlignment.Center
 TLy.HorizontalAlignment = Enum.HorizontalAlignment.Left
 TLy.Padding = UDim.new(0,6)
 ​local Cont = Instance.new("Frame", W)
-Cont.Size = UDim2.new(1,-10,1,-128)
-Cont.Position = UDim2.new(0,5,0,100)
+Cont.Size = UDim2.new(1,-10,1,-104)
+Cont.Position = UDim2.new(0,5,0,96)
 Cont.BackgroundTransparency = 1
 Cont.ZIndex = 3
 ​TLG.TabBar = TabBar
 TLG.Cont = Cont
-​local BH = Instance.new("Frame", W)
-BH.Name = "ZTB_BottomHandle"
-BH.Size = UDim2.new(1,-10,0,20)
-BH.Position = UDim2.new(0,5,1,-24)
-BH.BackgroundColor3 = C.BG2
-BH.BackgroundTransparency = 0.2
-BH.BorderSizePixel = 0
-BH.ZIndex = 8
-Instance.new("UICorner", BH).CornerRadius = UDim.new(0,8)
-local BHs = Instance.new("UIStroke", BH)
-BHs.Color = C.Yel; BHs.Thickness = 1; BHs.Transparency = 0.6
-local BHp = Instance.new("Frame", BH)
-BHp.Size = UDim2.new(0,64,0,4)
-BHp.Position = UDim2.new(0.5,-32,0.5,-2)
-BHp.BackgroundColor3 = C.Yel
-BHp.BorderSizePixel = 0
-BHp.ZIndex = 9
-Instance.new("UICorner", BHp).CornerRadius = UDim.new(1,0)
-makeDrag(BH)
-TLG.BotHandle = BH
 ​local Tabs = {}
 ​local function Tab(name, icon)
 local b = Instance.new("TextButton", TScr)
@@ -1824,7 +1990,45 @@ Tabs[1].b.BackgroundColor3 = C.BG3
 Tabs[1].b.BackgroundTransparency = 0.5
 TW:Create(Tabs[1].u, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Size = UDim2.new(0.7,0,0,3)}):Play()
 end
-​-- INFO TAB (con botones de Orbitar con Activación/Desactivación)
+​-- PESTAÑA AIMBOT (CON NUEVO VISUAL AIM ASSIST BLOX FRUITS)
+Sec(PAb, "FOVISUAL AIM ASSIST (ESTILO BLOX FRUITS)", "🎯")
+Tog(PAb, "Activar FOV Aim Assist", AimAssist.Enabled, function(v)
+if v then TLG.AimAssistStart() else TLG.AimAssistStop() end
+end)
+Tog(PAb, "Mostrar Círculo FOV", AimAssist.ShowFOV, function(v)
+AimAssist.ShowFOV = v
+FOVCircle.Visible = AimAssist.Enabled and v
+end)
+Tog(PAb, "Mostrar Línea Tracer (Puntero)", AimAssist.ShowTracer, function(v)
+AimAssist.ShowTracer = v
+if not v then TracerLine.Visible = false end
+end)
+Tog(PAb, "Mostrar Punto en Objetivo (Target Dot)", AimAssist.ShowDot, function(v)
+AimAssist.ShowDot = v
+if not v then TargetDot.Visible = false end
+end)
+Tog(PAb, "Lock Cam a Objetivo", AimAssist.LockCamera, function(v)
+AimAssist.LockCamera = v
+end)
+Sli(PAb, "Radio del FOV", 50, 400, AimAssist.FOVRadius, function(v)
+AimAssist.FOVRadius = v
+end)
+Sli(PAb, "Suavizado Cam (Smoothness)", 1, 100, math.floor(AimAssist.Smoothness * 100), function(v)
+AimAssist.Smoothness = v / 100
+end)
+​Sec(PAb, "HITBOX FANTASMA ORIGINAL", "👻")
+Tog(PAb, "Activar Hitbox Cabeza", AIM.On, function(v)
+if v then TLG.AIM_Start() else TLG.AIM_Stop() end
+end)
+Tog(PAb, "Ver Hitbox", AIM.ShowHitbox, function(v)
+AIM.ShowHitbox = v
+if AIM.On then TLG.AIM_Stop(); TLG.AIM_Start() end
+end)
+Sli(PAb, "Tamaño Hitbox", 10, 1000, AIM.HeadSize, function(v)
+AIM.HeadSize = v
+if AIM.On then TLG.AIM_Stop(); TLG.AIM_Start() end
+end)
+​-- INFO TAB
 local infoOK, infoERR = pcall(function()
 local function fmt(n)
 n = math.floor(tonumber(n) or 0)
@@ -2042,8 +2246,7 @@ if TLG.Sp.T then TLG.SpS(); pcall(refresh); return end
 local p = otherTarget(); if not p then return end
 TLG.SpSt(p); pcall(refresh)
 end)
-​-- Botones de Activar / Desactivar Orbit Player integrados en la Pestaña 1
-bOrbit = Btn(PInfo, "🌀 Orbit Player", C.Yel, function()
+​bOrbit = Btn(PInfo, "🌀 Orbit Player", C.Yel, function()
 if OrbitPlayer.On then
 TLG.OrbitPlayerStop()
 else
@@ -2087,4 +2290,92 @@ task.wait(0.5)
 end
 end)
 end)
-​print("[ZTB HUB V9.4.7] 💀 Cargado con éxito y Orbit Integrado")
+​--==================================================
+-- FABS ACCIONES RÁPIDAS (BOTONES PEQUEÑOS Y INDIVIDUALES)
+--==================================================
+local FSG = Instance.new("ScreenGui")
+FSG.Name = "TLG_FAB_Float"
+_G.TLG_FAB_GUI = FSG
+FSG.ResetOnSpawn = false
+FSG.DisplayOrder = 999
+FSG.IgnoreGuiInset = true
+pcall(function() FSG.Parent = TLG.SP end)
+if not FSG.Parent then pcall(function() FSG.Parent = CG end) end
+​local fabButtonsList = {
+{icon = "🎯", pos = UDim2.new(0, 15, 0.6, 0), action = function() if AimAssist.Enabled then TLG.AimAssistStop() return false else TLG.AimAssistStart() return true end end},
+{icon = "✈", pos = UDim2.new(0, 60, 0.6, 0), action = function() if TLG.Fly.On then TLG.FlyE() return false else TLG.FlyS() return true end end},
+{icon = "🌀", pos = UDim2.new(0, 105, 0.6, 0), action = function()
+local target = TLG.SelectedTarget
+if not target or target == TLG.LP or not target.Parent then TLG.PNotif("🌀 God Orb", "Selecciona un jugador", C.Yel) return false end
+if TLG.GO.On then TLG.GOS() return false else TLG.GOSt(target) return true end
+end},
+{icon = "🪐", pos = UDim2.new(0, 150, 0.6, 0), action = function() if OM.On then TLG.OrbitalMapStop() return false else TLG.OrbitalMapStart() return OM.On end end},
+{icon = "💫", pos = UDim2.new(0, 195, 0.6, 0), action = function() if TLG.AntiStunState.On then TLG.AntiStunStop() return false else TLG.AntiStunStart() return TLG.AntiStunState.On end end},
+{icon = "🔧", pos = UDim2.new(0, 240, 0.6, 0), action = function() if TLG.VisualSkillSpeed.On then TLG.VisualSkillSpeedStop() return false else TLG.VisualSkillSpeedStart() return TLG.VisualSkillSpeed.On end end},
+{icon = "🕳️", pos = UDim2.new(0, 285, 0.6, 0), action = function() if TLG.AntiVoidState.On then TLG.AntiVoidStop() return false else TLG.AntiVoidStart() return TLG.AntiVoidState.On end end},
+{icon = "🚫", pos = UDim2.new(0, 330, 0.6, 0), action = function() if TLG.AntiOrbitState.On then TLG.AntiOrbitStop() return false else TLG.AntiOrbitStart() return TLG.AntiOrbitState.On end end}
+}
+​local createdFabs = {}
+for idx, data in ipairs(fabButtonsList) do
+local btn = Instance.new("TextButton", FSG)
+btn.Name = "FAB_Button_" .. idx
+btn.Size = UDim2.new(0, 36, 0, 36)
+btn.Position = data.pos
+btn.BackgroundColor3 = C.BG2
+btn.Text = data.icon
+btn.TextSize = 16
+btn.TextColor3 = C.Wh
+btn.BorderSizePixel = 0
+btn.ZIndex = 999
+btn.Active = true
+​Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+local bS = Instance.new("UIStroke", btn)
+bS.Thickness = 1.5
+bS.Color = C.Yel
+bS.Transparency = 0.4
+​local bDrag = {active = false, start = nil, pos = nil, moved = false}
+btn.InputBegan:Connect(function(i)
+if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+bDrag.active = true
+bDrag.start = i.Position
+bDrag.pos = btn.Position
+bDrag.moved = false
+end
+end)
+​UIS.InputChanged:Connect(function(i)
+if bDrag.active and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+local delta = i.Position - bDrag.start
+if delta.Magnitude > 5 then
+bDrag.moved = true
+end
+btn.Position = UDim2.new(
+bDrag.pos.X.Scale,
+bDrag.pos.X.Offset + delta.X,
+bDrag.pos.Y.Scale,
+bDrag.pos.Y.Offset + delta.Y
+)
+end
+end)
+​UIS.InputEnded:Connect(function(i)
+if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+bDrag.active = false
+end
+end)
+​btn.Activated:Connect(function()
+if not bDrag.moved then
+local res = data.action()
+if res == true then
+btn.BackgroundColor3 = C.Yel
+btn.TextColor3 = C.BG
+elseif res == false then
+btn.BackgroundColor3 = C.BG2
+btn.TextColor3 = C.Wh
+end
+end
+end)
+​table.insert(createdFabs, btn)
+end
+​TLG.FAB_SetVisible = function(v)
+FSG.Enabled = v == true
+end
+​print("[ZTB HUB V9.5.0] 💀 Visual Aim Assist Estilo Blox Fruits Agregado")
