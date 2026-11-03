@@ -527,6 +527,10 @@ local function applyHB(p)
   local h = ch:FindFirstChild("HumanoidRootPart")
   if not h then return end
   local s = math.clamp(HB.Sz, 1, 2048)
+  -- Hitbox grande = invisible y sin sombra: evita el lag de dibujar una parte gigante
+  local big = s > 100
+  local tr = big and 1 or HB.Tr
+  local mat = big and Enum.Material.SmoothPlastic or Enum.Material.Neon
   pcall(function()
     if HB.Original[h] == nil then
       HB.Original[h] = {
@@ -536,27 +540,40 @@ local function applyHB(p)
         Material = h.Material,
         Color = h.Color,
         CanCollide = h.CanCollide,
+        CastShadow = h.CastShadow,
       }
     end
-    h.Size = Vector3.new(s, s, s)
-    h.Transparency = HB.Tr
-    h.LocalTransparencyModifier = 0
-    h.Material = Enum.Material.Neon
-    h.Color = TLG.A()
-    h.CanCollide = false
+    -- Solo se escribe lo que cambió (antes se reescribía todo en cada frame)
+    local want = Vector3.new(s, s, s)
+    if h.Size ~= want then h.Size = want end
+    if h.Transparency ~= tr then h.Transparency = tr end
+    if h.LocalTransparencyModifier ~= 0 then h.LocalTransparencyModifier = 0 end
+    if h.Material ~= mat then h.Material = mat end
+    if h.CastShadow then h.CastShadow = false end
+    if h.CanCollide then h.CanCollide = false end
+    if not big then
+      local c = TLG.A()
+      if h.Color ~= c then h.Color = c end
+    end
   end)
 end
 function TLG.HBStart()
   if HB.Conn then return end
   HB.On = true
-  for _, p in ipairs(PLR:GetPlayers()) do
-    if p ~= TLG.LP then pcall(applyHB, p) end
-  end
-  HB.Conn = RS.Heartbeat:Connect(function()
-    if not HB.On then return end
+  local last = 0
+  local function sweep()
     for _, p in ipairs(PLR:GetPlayers()) do
       if p ~= TLG.LP then pcall(applyHB, p) end
     end
+  end
+  sweep()
+  -- 5 revisiones por segundo en vez de una por frame
+  HB.Conn = RS.Heartbeat:Connect(function()
+    if not HB.On then return end
+    local now = os.clock()
+    if now - last < 0.2 then return end
+    last = now
+    sweep()
   end)
 end
 function TLG.HBStop()
@@ -571,6 +588,7 @@ function TLG.HBStop()
         part.Material = old.Material
         part.Color = old.Color
         part.CanCollide = old.CanCollide
+        part.CastShadow = old.CastShadow
       end)
     end
   end
