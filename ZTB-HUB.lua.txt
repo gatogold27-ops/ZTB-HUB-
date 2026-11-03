@@ -213,7 +213,15 @@ local Themes = {
   ["💚 Green"]  = {A=Color3.fromRGB(80,255,130), A2=Color3.fromRGB(160,255,180)},
   ["💗 Pink"]   = {A=Color3.fromRGB(255,110,210),A2=Color3.fromRGB(255,180,235)},
   ["🧡 Orange"] = {A=Color3.fromRGB(255,160,60), A2=Color3.fromRGB(255,210,130)},
-  ["🤍 White"]  = {A=Color3.fromRGB(250,250,255),A2=Color3.fromRGB(255,255,255)}
+  ["🤍 White"]  = {A=Color3.fromRGB(250,250,255),A2=Color3.fromRGB(255,255,255)},
+  ["🔥 Fuego"]   = {A=Color3.fromRGB(255,98,20),  A2=Color3.fromRGB(255,170,80)},
+  ["🩸 Sangre"]  = {A=Color3.fromRGB(210,25,45),  A2=Color3.fromRGB(255,110,120)},
+  ["🌊 Océano"]  = {A=Color3.fromRGB(20,130,255), A2=Color3.fromRGB(110,190,255)},
+  ["🧊 Hielo"]   = {A=Color3.fromRGB(150,220,255),A2=Color3.fromRGB(210,240,255)},
+  ["🍋 Lima"]    = {A=Color3.fromRGB(190,255,50), A2=Color3.fromRGB(225,255,140)},
+  ["🌌 Galaxia"] = {A=Color3.fromRGB(110,90,255), A2=Color3.fromRGB(170,150,255)},
+  ["🌸 Sakura"]  = {A=Color3.fromRGB(255,170,200),A2=Color3.fromRGB(255,215,230)},
+  ["🍃 Menta"]   = {A=Color3.fromRGB(0,255,190),  A2=Color3.fromRGB(130,255,225)}
 }
 TLG.Themes = Themes
 TLG.CurrentTheme = "👑 Gold"
@@ -1636,6 +1644,9 @@ Cont.Position = UDim2.new(0,5,0,100)
 Cont.BackgroundTransparency = 1
 Cont.ZIndex = 3
 
+TabBar.Visible = false
+Cont.Position = UDim2.new(0,5,0,60)
+Cont.Size = UDim2.new(1,-10,1,-90)
 TLG.TabBar = TabBar
 TLG.Cont = Cont
 
@@ -1714,7 +1725,7 @@ local function Tab(name, icon)
     pp.PaddingRight = UDim.new(0,8)
     pp.PaddingBottom = UDim.new(0,8)
     table.insert(Tabs, {b = b, l = lb, p = pg, u = ul, ico = ico})
-    b.Activated:Connect(function()
+    local function act()
         for _, t in ipairs(Tabs) do
             t.l.TextColor3 = C.Gr
             t.ico.TextTransparency = 0.5
@@ -1731,7 +1742,10 @@ local function Tab(name, icon)
         b.BackgroundColor3 = C.BG3
         b.BackgroundTransparency = 0.5
         TW:Create(ul, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Size = UDim2.new(0.7,0,0,3)}):Play()
-    end)
+    end
+    b.Activated:Connect(act)
+    TLG.TabAct = TLG.TabAct or {}
+    TLG.TabAct[name] = act
     return pg
 end
 
@@ -1936,14 +1950,14 @@ TLG.Tog = Tog
 TLG.Sli = Sli
 TLG.Btn = Btn
 
-local PInfo = Tab("Info", "📊")
+local PInfo = Tab("Info", "📡")
 local PCb = Tab("Combat", "⚔️")
-local PFl = Tab("Fly", "✈")
+local PFl = Tab("Fly", "🦅")
 local PIs = Tab("Islands", "🏝️")
 local PSc = Tab("Scripts", "📜")
-local PTo = Tab("Tools", "🔧")
+local PTo = Tab("Tools", "🛠️")
 local PEs = Tab("ESP", "👁️")
-local PVi = Tab("Visuals", "🎨")
+local PVi = Tab("Visuals", "🌈")
 local POp = Tab("Optimize", "⚡")
 local PCf = Tab("Config", "⚙️")
 
@@ -4425,7 +4439,7 @@ do
         W.Size = UDim2.fromOffset(BAR_W, BAR_H)
         W.Position = MiniBar.Position
         W.Visible = true
-        TabBar.Visible = true; Cont.Visible = true; BH.Visible = true
+        TabBar.Visible = false; Cont.Visible = true; BH.Visible = true
         WM.Visible = true
         STtl.Text = "👑"
         tw(W, 0.42, EASE.Back, DIR.Out, {Size = W_S, Position = lastWPos})
@@ -4445,6 +4459,364 @@ if UIS.KeyboardEnabled then
     if gp then return end
     if i.KeyCode == Enum.KeyCode.RightShift then setMin(not min) end
   end)
+end
+
+-- ═══════════ MENÚ RADIAL (calavera) ═══════════
+do
+  local EASE, DIR = Enum.EasingStyle, Enum.EasingDirection
+  local ORB = 64
+  local DEFS = {
+    {"Info",     "📡", "Info"},
+    {"Combat",   "⚔️", "Combate"},
+    {"Fly",      "🦅", "Vuelo"},
+    {"Islands",  "🏝️", "Islas"},
+    {"Scripts",  "📜", "Scripts"},
+    {"Tools",    "🛠️", "Tools"},
+    {"ESP",      "👁️", "ESP"},
+    {"Visuals",  "🌈", "Visual"},
+    {"Optimize", "⚡", "Optimiz."},
+    {"Config",   "⚙️", "Config"},
+  }
+
+  local root = Instance.new("Frame")
+  root.Name = "ZTB_Radial"
+  root.Size = UDim2.fromScale(1, 1)
+  root.BackgroundTransparency = 1
+  root.BorderSizePixel = 0
+  root.ZIndex = 300
+  root.Parent = SG
+
+  local back = Instance.new("TextButton", root)
+  back.Size = UDim2.fromScale(1, 1)
+  back.BackgroundColor3 = Color3.new(0, 0, 0)
+  back.BackgroundTransparency = 1
+  back.BorderSizePixel = 0
+  back.Text = ""
+  back.AutoButtonColor = false
+  back.Visible = false
+  back.ZIndex = 1
+
+  local orb = Instance.new("Frame", root)
+  orb.Name = "Orb"
+  orb.AnchorPoint = Vector2.new(0.5, 0.5)
+  orb.Size = UDim2.fromOffset(0, 0)
+  orb.BackgroundColor3 = C.BG2
+  orb.BorderSizePixel = 0
+  orb.ZIndex = 20
+  Instance.new("UICorner", orb).CornerRadius = UDim.new(1, 0)
+  local orbS = Instance.new("UIStroke", orb)
+  orbS.Thickness = 2.5
+  orbS.Color = C.Yel
+  TLG.PGlow(orbS, 0.05, 0.5, 1.2)
+
+  local halo = Instance.new("Frame", orb)
+  halo.AnchorPoint = Vector2.new(0.5, 0.5)
+  halo.Position = UDim2.fromScale(0.5, 0.5)
+  halo.Size = UDim2.fromOffset(ORB + 10, ORB + 10)
+  halo.BackgroundTransparency = 1
+  halo.BorderSizePixel = 0
+  halo.ZIndex = 19
+  Instance.new("UICorner", halo).CornerRadius = UDim.new(1, 0)
+  local haloS = Instance.new("UIStroke", halo)
+  haloS.Thickness = 1.5
+  haloS.Color = C.Yel
+  haloS.Transparency = 0.35
+  TW:Create(halo, TweenInfo.new(1.3, EASE.Sine, DIR.InOut, -1, true),
+    {Size = UDim2.fromOffset(ORB + 26, ORB + 26)}):Play()
+  TW:Create(haloS, TweenInfo.new(1.3, EASE.Sine, DIR.InOut, -1, true),
+    {Transparency = 0.95}):Play()
+
+  local skull = Instance.new("TextLabel", orb)
+  skull.Size = UDim2.fromScale(1, 1)
+  skull.BackgroundTransparency = 1
+  skull.Text = "💀"
+  skull.TextSize = 34
+  skull.Font = Enum.Font.GothamBold
+  skull.TextColor3 = C.Wh
+  skull.ZIndex = 21
+
+  local hit = Instance.new("TextButton", orb)
+  hit.Size = UDim2.fromScale(1, 1)
+  hit.BackgroundTransparency = 1
+  hit.Text = ""
+  hit.AutoButtonColor = false
+  hit.ZIndex = 25
+
+  local items, byKey = {}, {}
+  for _, d in ipairs(DEFS) do
+    if TLG.TabAct and TLG.TabAct[d[1]] then
+      local b = Instance.new("TextButton", root)
+      b.AnchorPoint = Vector2.new(0.5, 0.5)
+      b.Size = UDim2.fromOffset(0, 0)
+      b.BackgroundColor3 = C.BG2
+      b.BackgroundTransparency = 0.05
+      b.BorderSizePixel = 0
+      b.Text = ""
+      b.AutoButtonColor = false
+      b.Visible = false
+      b.ZIndex = 10
+      Instance.new("UICorner", b).CornerRadius = UDim.new(1, 0)
+      local st = Instance.new("UIStroke", b)
+      st.Thickness = 2
+      st.Color = C.Yel
+      st.Transparency = 0.35
+      local ic = Instance.new("TextLabel", b)
+      ic.Size = UDim2.new(1, 0, 0.58, 0)
+      ic.Position = UDim2.new(0, 0, 0.08, 0)
+      ic.BackgroundTransparency = 1
+      ic.Text = d[2]
+      ic.TextSize = 22
+      ic.Font = Enum.Font.GothamBold
+      ic.TextColor3 = C.Wh
+      ic.ZIndex = 11
+      local nm = Instance.new("TextLabel", b)
+      nm.Size = UDim2.new(1, 0, 0.26, 0)
+      nm.Position = UDim2.new(0, 0, 0.66, 0)
+      nm.BackgroundTransparency = 1
+      nm.Text = d[3]
+      nm.TextSize = 8
+      nm.Font = Enum.Font.GothamBold
+      nm.TextColor3 = C.Wh
+      nm.ZIndex = 11
+      local it = {key = d[1], ico = d[2], label = d[3], b = b, st = st, ic = ic, nm = nm}
+      table.insert(items, it)
+      byKey[d[1]] = it
+    end
+  end
+  -- último botón: mostrar / ocultar el panel
+  do
+    local b = Instance.new("TextButton", root)
+    b.AnchorPoint = Vector2.new(0.5, 0.5)
+    b.Size = UDim2.fromOffset(0, 0)
+    b.BackgroundColor3 = Color3.fromRGB(48, 18, 20)
+    b.BackgroundTransparency = 0.05
+    b.BorderSizePixel = 0
+    b.Text = ""
+    b.AutoButtonColor = false
+    b.Visible = false
+    b.ZIndex = 10
+    Instance.new("UICorner", b).CornerRadius = UDim.new(1, 0)
+    local st = Instance.new("UIStroke", b)
+    st.Thickness = 2
+    st.Color = C.Rd
+    st.Transparency = 0.35
+    local ic = Instance.new("TextLabel", b)
+    ic.Size = UDim2.new(1, 0, 0.58, 0)
+    ic.Position = UDim2.new(0, 0, 0.08, 0)
+    ic.BackgroundTransparency = 1
+    ic.Text = "🖥️"
+    ic.TextSize = 22
+    ic.Font = Enum.Font.GothamBold
+    ic.TextColor3 = C.Wh
+    ic.ZIndex = 11
+    local nm = Instance.new("TextLabel", b)
+    nm.Size = UDim2.new(1, 0, 0.26, 0)
+    nm.Position = UDim2.new(0, 0, 0.66, 0)
+    nm.BackgroundTransparency = 1
+    nm.Text = "Panel"
+    nm.TextSize = 8
+    nm.Font = Enum.Font.GothamBold
+    nm.TextColor3 = C.Wh
+    nm.ZIndex = 11
+    local it = {key = "__panel", ico = "🖥️", label = "Panel", b = b, st = st, ic = ic, nm = nm}
+    table.insert(items, it)
+    byKey.__panel = it
+  end
+
+  local cur = {c = Vector2.new(0, 0), R = 100, S = 50}
+  local orbPos = Vector2.new(48, 200)
+  local isOpen = false
+  local token = 0
+  local activeKey = nil
+
+  local function setActive(key)
+    activeKey = key
+    for _, it in ipairs(items) do
+      if it.key ~= "__panel" then
+        local on = it.key == key
+        it.b.BackgroundColor3 = on and C.Yel or C.BG2
+        it.ic.TextColor3 = on and C.BG or C.Wh
+        it.nm.TextColor3 = on and C.BG or C.Wh
+        it.st.Transparency = on and 0 or 0.35
+      end
+    end
+  end
+
+  local function render(p)
+    local n = #items
+    for i, it in ipairs(items) do
+      local d = (i - 1) / n * 0.4
+      local q = (p - d) / (1 - d)
+      local qc = math.clamp(q, 0, 1.15)
+      local a = -math.pi / 2 + (i - 1) * (2 * math.pi / n) + (1 - math.clamp(q, 0, 1)) * -1.6
+      local r = cur.R * math.max(q, 0)
+      it.b.Position = UDim2.fromOffset(cur.c.X + math.cos(a) * r, cur.c.Y + math.sin(a) * r)
+      local sz = cur.S * qc
+      it.b.Size = UDim2.fromOffset(sz, sz)
+    end
+  end
+
+  local prog = Instance.new("NumberValue")
+  prog.Value = 0
+  prog.Parent = root
+  prog.Changed:Connect(function(v)
+    if root.Parent then render(v) end
+  end)
+
+  local function geom()
+    local vp = SG.AbsoluteSize
+    if vp.X < 50 or vp.Y < 50 then vp = Vector2.new(800, 400) end
+    local n = #items
+    local R = math.clamp(math.min(vp.X, vp.Y) / 2 - 44, 68, 118)
+    local S = math.clamp(2 * math.pi * R / n - 8, 34, 54)
+    return vp, R, S
+  end
+
+  local setOpen
+  setOpen = function(st)
+    st = st == true
+    if st == isOpen then return end
+    isOpen = st
+    token += 1
+    local my = token
+    if st then
+      local vp, R, S = geom()
+      cur.R, cur.S = R, S
+      local pad = R + S / 2 + 8
+      local cx = vp.X < pad * 2 and vp.X / 2 or math.clamp(orbPos.X, pad, vp.X - pad)
+      local cy = vp.Y < pad * 2 and vp.Y / 2 or math.clamp(orbPos.Y, pad, vp.Y - pad)
+      cur.c = Vector2.new(cx, cy)
+      for _, it in ipairs(items) do
+        it.ic.TextSize = math.floor(S * 0.42)
+        it.nm.TextSize = math.max(7, math.floor(S * 0.17))
+        it.b.Visible = true
+      end
+      prog.Value = 0
+      render(0)
+      back.Visible = true
+      TW:Create(back, TweenInfo.new(0.25), {BackgroundTransparency = 0.55}):Play()
+      TW:Create(orb, TweenInfo.new(0.25, EASE.Quint, DIR.Out),
+        {Position = UDim2.fromOffset(cx, cy)}):Play()
+      TW:Create(skull, TweenInfo.new(0.45, EASE.Back, DIR.Out), {Rotation = 360}):Play()
+      TW:Create(prog, TweenInfo.new(0.5, EASE.Back, DIR.Out), {Value = 1}):Play()
+    else
+      TW:Create(back, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+      TW:Create(skull, TweenInfo.new(0.3, EASE.Quad, DIR.Out), {Rotation = 0}):Play()
+      TW:Create(prog, TweenInfo.new(0.24, EASE.Quad, DIR.In), {Value = 0}):Play()
+      task.delay(0.26, function()
+        if token ~= my then return end
+        for _, it in ipairs(items) do it.b.Visible = false end
+        back.Visible = false
+      end)
+    end
+  end
+  back.Activated:Connect(function() setOpen(false) end)
+
+  local function showPanel()
+    if min then setMin(false); return end
+    if not W.Visible then
+      W.Size = UDim2.fromOffset(W_S.X.Offset * 0.86, W_S.Y.Offset * 0.86)
+      W.Visible = true
+      pcall(function() WM.Visible = true end)
+      TW:Create(W, TweenInfo.new(0.35, EASE.Back, DIR.Out), {Size = W_S}):Play()
+    end
+  end
+
+  for _, it in ipairs(items) do
+    local b = it.b
+    b.MouseButton1Down:Connect(function()
+      TW:Create(b, TweenInfo.new(0.08), {Size = UDim2.fromOffset(cur.S * 0.88, cur.S * 0.88)}):Play()
+    end)
+    b.MouseButton1Up:Connect(function()
+      TW:Create(b, TweenInfo.new(0.12, EASE.Back, DIR.Out), {Size = UDim2.fromOffset(cur.S, cur.S)}):Play()
+    end)
+    b.Activated:Connect(function()
+      setOpen(false)
+      if it.key == "__panel" then
+        if min or not W.Visible then
+          showPanel()
+        else
+          W.Visible = false
+          pcall(function() WM.Visible = false end)
+        end
+        return
+      end
+      showPanel()
+      local act = TLG.TabAct and TLG.TabAct[it.key]
+      if act then pcall(act) end
+      setActive(it.key)
+      pcall(function() SubTitle.Text = it.ico .. "  " .. string.upper(it.label) .. "  " .. it.ico end)
+    end)
+  end
+
+  -- arrastrar la calavera / tocar para abrir
+  local function isPointer(i)
+    return i.UserInputType == Enum.UserInputType.MouseButton1
+      or i.UserInputType == Enum.UserInputType.Touch
+  end
+  local dragging, moved, dragInput, startMouse, startPos = false, false, nil, Vector2.zero, Vector2.zero
+  hit.InputBegan:Connect(function(i)
+    if dragging or not isPointer(i) then return end
+    dragging, moved, dragInput = true, false, i
+    startMouse = Vector2.new(i.Position.X, i.Position.Y)
+    startPos = orbPos
+  end)
+  UIS.InputChanged:Connect(function(i)
+    if not dragging or isOpen then return end
+    local same = (i == dragInput)
+      or (dragInput.UserInputType == Enum.UserInputType.MouseButton1
+          and i.UserInputType == Enum.UserInputType.MouseMovement)
+    if not same then return end
+    local d = Vector2.new(i.Position.X, i.Position.Y) - startMouse
+    if not moved and d.Magnitude > 8 then moved = true end
+    if moved then
+      local vp = SG.AbsoluteSize
+      local x = math.clamp(startPos.X + d.X, ORB / 2, math.max(ORB / 2, vp.X - ORB / 2))
+      local y = math.clamp(startPos.Y + d.Y, ORB / 2, math.max(ORB / 2, vp.Y - ORB / 2))
+      orbPos = Vector2.new(x, y)
+      orb.Position = UDim2.fromOffset(x, y)
+    end
+  end)
+  UIS.InputEnded:Connect(function(i)
+    if not dragging then return end
+    local same = (i == dragInput)
+      or (dragInput.UserInputType == Enum.UserInputType.MouseButton1
+          and i.UserInputType == Enum.UserInputType.MouseButton1)
+    if not same then return end
+    dragging = false
+    if not moved then
+      if isOpen then
+        setOpen(false)
+      else
+        orbPos = Vector2.new(orb.Position.X.Offset, orb.Position.Y.Offset)
+        setOpen(true)
+      end
+    end
+  end)
+
+  -- posición inicial y entrada con animación
+  do
+    local vp = SG.AbsoluteSize
+    if vp.X < 50 or vp.Y < 50 then vp = Vector2.new(800, 400) end
+    orbPos = Vector2.new(46, math.floor(vp.Y * 0.45))
+    orb.Position = UDim2.fromOffset(orbPos.X, orbPos.Y)
+    TW:Create(orb, TweenInfo.new(0.6, EASE.Back, DIR.Out),
+      {Size = UDim2.fromOffset(ORB, ORB)}):Play()
+  end
+
+  if TLG.TabAct and TLG.TabAct.Info then
+    pcall(TLG.TabAct.Info)
+    setActive("Info")
+    pcall(function() SubTitle.Text = "📡  INFO  📡" end)
+  end
+  TLG.Radial = {Open = function() setOpen(true) end, Close = function() setOpen(false) end}
+
+  if UIS.KeyboardEnabled then
+    UIS.InputBegan:Connect(function(i, gp)
+      if gp then return end
+      if i.KeyCode == Enum.KeyCode.RightControl then setOpen(not isOpen) end
+    end)
+  end
 end
 
 if TLG._postBuild then pcall(TLG._postBuild) end
