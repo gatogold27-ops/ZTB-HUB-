@@ -47,140 +47,8 @@ end
 TLG.getParent = getParent
 TLG.SP = getParent()
 
---==================================================
--- ZTB HUB KEY SYSTEM
---==================================================
--- Client-side gate only. For real protection, validate keys
--- against a server you control rather than embedding secrets.
---==================================================
-
-local TLGKeySystem = {
-    Enabled = true,
-    Verified = false,
-    ValidKeys = {
-        ["TLG-2026"] = true, -- cambia/agrega tus keys aquí
-    }
-}
-
-TLG.KeySystem = TLGKeySystem
-
-local function VerifyTLGKey(key)
-    key = tostring(key or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if TLGKeySystem.ValidKeys[key] then
-        TLGKeySystem.Verified = true
-        return true
-    end
-    return false
-end
-
-local function ShowTLGKeyGate()
-    if not TLGKeySystem.Enabled then
-        TLGKeySystem.Verified = true
-        return true
-    end
-
-    local parent = TLG.SP
-    if not parent then return false end
-
-    local old = parent:FindFirstChild("TLG_KeySystem")
-    if old then old:Destroy() end
-
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "TLG_KeySystem"
-    gui.ResetOnSpawn = false
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    gui.Parent = parent
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.fromOffset(320, 190)
-    frame.Position = UDim2.fromScale(0.5, 0.5)
-    frame.AnchorPoint = Vector2.new(0.5, 0.5)
-    frame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-    frame.BorderSizePixel = 0
-    frame.Parent = gui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 7)
-    corner.Parent = frame
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -24, 0, 40)
-    title.Position = UDim2.fromOffset(12, 10)
-    title.BackgroundTransparency = 1
-    title.Text = "🔐 ZTB HUB — KEY SYSTEM"
-    title.TextSize = 18
-    title.Font = Enum.Font.GothamBold
-    title.TextColor3 = Color3.fromRGB(255, 215, 0)
-    title.Parent = frame
-
-    local box = Instance.new("TextBox")
-    box.Size = UDim2.new(1, -24, 0, 42)
-    box.Position = UDim2.fromOffset(12, 58)
-    box.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
-    box.PlaceholderText = "Introduce tu key..."
-    box.Text = ""
-    box.TextSize = 15
-    box.Font = Enum.Font.Gotham
-    box.TextColor3 = Color3.fromRGB(245, 245, 245)
-    box.Parent = frame
-
-    local bc = Instance.new("UICorner")
-    bc.CornerRadius = UDim.new(0, 8)
-    bc.Parent = box
-
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, -24, 0, 40)
-    button.Position = UDim2.fromOffset(12, 110)
-    button.BackgroundColor3 = Color3.fromRGB(255, 200, 80)
-    button.Text = "VERIFY KEY"
-    button.TextSize = 15
-    button.Font = Enum.Font.GothamBold
-    button.TextColor3 = Color3.fromRGB(20, 20, 20)
-    button.Parent = frame
-
-    local ub = Instance.new("UICorner")
-    ub.CornerRadius = UDim.new(0, 8)
-    ub.Parent = button
-
-    local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(1, -24, 0, 25)
-    status.Position = UDim2.fromOffset(12, 153)
-    status.BackgroundTransparency = 1
-    status.Text = "🔒 Esperando key..."
-    status.TextSize = 13
-    status.Font = Enum.Font.Gotham
-    status.TextColor3 = Color3.fromRGB(190, 190, 190)
-    status.Parent = frame
-
-    local verified = false
-
-    local function tryVerify()
-        if VerifyTLGKey(box.Text) then
-            verified = true
-            status.Text = "✅ Key válida"
-            task.wait(0.25)
-            gui:Destroy()
-        else
-            status.Text = "❌ Key incorrecta"
-            box.Text = ""
-        end
-    end
-
-    button.MouseButton1Click:Connect(tryVerify)
-    box.FocusLost:Connect(function(enterPressed)
-        if enterPressed then tryVerify() end
-    end)
-
-    while gui.Parent and not verified do
-        task.wait()
-    end
-
-    return verified
-end
-
-if not ShowTLGKeyGate() then
-    return
-end
+-- Key system eliminado (uso personal)
+TLG.KeySystem = {Enabled = false, Verified = true}
 
 local names = {"TLG_GoldV4","TLG_GoldV5","TLG_GoldV6","TLG_GoldV7",
   "TLG_GoldV8","ZTB_HUB_Menu","TLG_HideBtn","TLG_Express","TLG_FAB","TLG_FAB_Float",
@@ -618,6 +486,9 @@ function TLG.GOS()
 end
 function TLG.GOSt(p)
   if not p or not p.Parent then return end
+  pcall(function()
+    if TLG.OrbitalMapState and TLG.OrbitalMapState.On then TLG.OrbitalMapStop() end
+  end)
   TLG.GOS()
   TLG.GO.T = p; TLG.GO.On = true; TLG.GO.Ang = 0
   task.spawn(function()
@@ -638,7 +509,9 @@ function TLG.GOSt(p)
       if TLG.GO.Ang > math.pi * 2 then TLG.GO.Ang = TLG.GO.Ang - math.pi * 2 end
       local off = Vector3.new(math.cos(TLG.GO.Ang) * 8, 3,
         math.sin(TLG.GO.Ang) * 8)
-      mh.CFrame = CFrame.new(th.Position + off, th.Position) * CFrame.Angles(0, math.pi, 0)
+      local pos = th.Position + off
+      -- de frente al objetivo y siempre derecho (sin inclinarse)
+      mh.CFrame = CFrame.lookAt(pos, Vector3.new(th.Position.X, pos.Y, th.Position.Z))
     end)
   end)
 end
@@ -729,6 +602,7 @@ function TLG.FlyS()
     bg.CFrame = h.CFrame
     bg.Parent = h
     hu.PlatformStand = true
+    local paused = false
     TLG.Fly.C = RS.RenderStepped:Connect(function()
       if not TLG.Fly.On then TLG.FlyE(); return end
       local curCh = TLG.LP.Character
@@ -760,6 +634,25 @@ function TLG.FlyS()
         end
         TLG.Fly.CollisionOriginal = {}
       end
+      -- God Orb / Orbit Map controlan el personaje: Fly se pausa para no pelear con ellos
+      local yield = (TLG.GO and TLG.GO.On)
+        or (TLG.OrbitalMapState and TLG.OrbitalMapState.On)
+      if yield then
+        if bg.MaxTorque ~= Vector3.zero then bg.MaxTorque = Vector3.zero end
+        if not paused then
+          paused = true
+          pcall(function()
+            h.AssemblyLinearVelocity = Vector3.zero
+            h.AssemblyAngularVelocity = Vector3.zero
+          end)
+        end
+        return
+      end
+      if paused then
+        paused = false
+        bg.MaxTorque = Vector3.new(1e10, 1e10, 1e10)
+      end
+
       local cam = TLG.Cam or workspace.CurrentCamera
       if cam then bg.CFrame = cam.CFrame end
 
@@ -2881,8 +2774,9 @@ function TLG.HipHeightStop()
 end
 
 local OM = {On=false, Distance=250, Height=80, Speed=35,
-  Angle=0, Connection=nil}
+  Chaos=100, ChaosOn=true, Angle=0, Connection=nil}
 TLG.OrbitalMapState = OM
+local omRng = Random.new()
 local function omRoot()
   local ch = TLG.LP and TLG.LP.Character
   return ch and ch:FindFirstChild("HumanoidRootPart")
@@ -2891,12 +2785,16 @@ function TLG.OrbitalMapStart()
   if OM.On then return end
   local r = omRoot()
   if not r then return end
+  pcall(function() if TLG.GO and TLG.GO.On then TLG.GOS() end end)
 
   OM.On = true
   OM.Angle = 0
 
   local center = r.Position
-  OM.Connection = RS.RenderStepped:Connect(function(dt)
+  local TAU = math.pi * 2
+  -- PreSimulation: la posición se escribe justo antes de cada paso de física,
+  -- que es la que se replica al servidor.
+  OM.Connection = RS.PreSimulation:Connect(function(dt)
     if not OM.On then return end
 
     local cur = omRoot()
@@ -2904,22 +2802,41 @@ function TLG.OrbitalMapStart()
       TLG.OrbitalMapStop()
       return
     end
-
-    -- Skip movement writes while the humanoid is being removed/replaced.
     local hum = cur.Parent:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then
       TLG.OrbitalMapStop()
       return
     end
 
-    OM.Angle = (OM.Angle + math.rad(OM.Speed) * dt) % (math.pi * 2)
+    local chaos = OM.ChaosOn and (OM.Chaos / 100) or 0
+    local step = math.rad(OM.Speed) * dt
+    if chaos > 0 then
+      if step > 1.2 then
+        -- A mucha velocidad un giro constante se ve "lento" desde fuera
+        -- (efecto estroboscópico) y el aimbot lo sigue. Ángulo al azar.
+        OM.Angle = omRng:NextNumber(0, TAU)
+      else
+        OM.Angle = (OM.Angle + step * (1 + (omRng:NextNumber() * 2 - 1) * 0.9 * chaos)) % TAU
+      end
+    else
+      OM.Angle = (OM.Angle + step) % TAU
+    end
 
-    local x = math.cos(OM.Angle) * OM.Distance
-    local z = math.sin(OM.Angle) * OM.Distance
-    local targetPos = center + Vector3.new(x, OM.Height, z)
+    local dist, hgt = OM.Distance, OM.Height
+    if chaos > 0 then
+      dist = dist * (1 + (omRng:NextNumber() * 2 - 1) * 0.35 * chaos)
+      hgt = hgt + omRng:NextNumber() * OM.Distance * 0.4 * chaos -- solo hacia arriba
+    end
+    local targetPos = center + Vector3.new(math.cos(OM.Angle) * dist, hgt,
+      math.sin(OM.Angle) * dist)
 
     pcall(function()
       cur.CFrame = CFrame.lookAt(targetPos, center)
+      if chaos > 0 then
+        -- velocidad falsa aleatoria: rompe la predicción por velocidad
+        cur.AssemblyLinearVelocity = omRng:NextUnitVector() * 1500 * chaos
+        cur.AssemblyAngularVelocity = Vector3.zero
+      end
     end)
   end)
 end
@@ -2928,6 +2845,8 @@ function TLG.OrbitalMapStop()
   if OM.Connection then
     pcall(function() OM.Connection:Disconnect() end); OM.Connection = nil
   end
+  local r = omRoot()
+  if r then pcall(function() r.AssemblyLinearVelocity = Vector3.zero end) end
 end
 function TLG.OrbitalMapSetDistance(v)
   OM.Distance = math.clamp(tonumber(v) or 250, 25, 2000)
@@ -2937,6 +2856,9 @@ function TLG.OrbitalMapSetHeight(v)
 end
 function TLG.OrbitalMapSetSpeed(v)
   OM.Speed = math.clamp(tonumber(v) or 35, 1, 20000)
+end
+function TLG.OrbitalMapSetChaos(v)
+  OM.Chaos = math.clamp(tonumber(v) or 100, 0, 100)
 end
 
 -- TOOLS TAB
@@ -2979,7 +2901,7 @@ do
     function(v) TLG.FugaSetHeight(v) end)
 
   Sec(PTo, "🌀 ORBITAL MAP", "🌀")
-  Lbl(PTo, "Movimiento estable: no fuerza el giro del aimbot.", C.Gr)
+  Lbl(PTo, "Con Caos activo la posición salta al azar (rompe el aimbot enemigo).", C.Gr)
 
   Tog(PTo, "Orbital Mapa", false, function(v)
     if v then TLG.OrbitalMapStart() else TLG.OrbitalMapStop() end
@@ -2990,6 +2912,9 @@ do
     function(v) TLG.OrbitalMapSetHeight(v) end)
   Sli(PTo, "Velocidad", 1, 20000, 35,
     function(v) TLG.OrbitalMapSetSpeed(v) end)
+  Tog(PTo, "Caos anti-aimbot", true, function(v) OM.ChaosOn = v == true end)
+  Sli(PTo, "Caos (%)", 0, 100, 100,
+    function(v) TLG.OrbitalMapSetChaos(v) end)
 
   Sec(PTo, "👻 NOCLIP / JUMP", "👻")
   Tog(PTo, "Noclip", false, function(v)
@@ -3097,7 +3022,7 @@ end
 local ESP = {
   On=false, Names=true, Distance=true, Health=true,
   Box=false, Tracer=false, Fill=true, FillTransparency=0.78,
-  MaxDistance=math.huge, Objects={}
+  MaxDistance=math.huge, Infinite=true, Objects={}
 }
 TLG.ESP = ESP
 
@@ -3233,7 +3158,7 @@ local function espUpdate(p)
     and TLG.LP.Character:FindFirstChild("HumanoidRootPart")
   local dist = mh and math.floor((mh.Position - root.Position).Magnitude)
     or 0
-  if ESP.MaxDistance ~= math.huge and dist > ESP.MaxDistance then
+  if not ESP.Infinite and ESP.MaxDistance ~= math.huge and dist > ESP.MaxDistance then
     pk.Billboard.Enabled = false
     pk.Highlight.Enabled = false
     pk.Box.Visible = false
@@ -3242,14 +3167,15 @@ local function espUpdate(p)
   end
   pk.Billboard.Enabled = true
   pk.Highlight.Enabled = true
-  pk.Billboard.MaxDistance = ESP.MaxDistance
+  pk.Billboard.MaxDistance = ESP.Infinite and math.huge or ESP.MaxDistance
 
   local lines = {}
   if ESP.Names then
     table.insert(lines, p.DisplayName.."  @"..p.Name)
   end
   if ESP.Distance then
-    table.insert(lines, "📏 "..dist.." studs")
+    local ds = dist >= 10000 and string.format("%.1fk", dist / 1000) or tostring(dist)
+    table.insert(lines, "📏 "..ds.." studs")
   end
   if ESP.Health then
     local hp = math.floor(hum.Health)
@@ -3286,6 +3212,11 @@ end
 function TLG.ESPStart()
   if ESP.On then return end
   ESP.On = true
+  pcall(function()
+    if workspace.StreamingEnabled then
+      TLG.PNotif("👁️ ESP", "Streaming activo: jugadores muy lejanos pueden no cargar", C.Yel)
+    end
+  end)
   for _, p in ipairs(PLR:GetPlayers()) do
     if p ~= TLG.LP then pcall(espCreate, p) end
   end
@@ -3342,6 +3273,7 @@ TLG.ESPToggleTracer = function(v)
   ESP.Tracer = v == true; updateTracers()
 end
 TLG.ESPToggleFill = function(v) ESP.Fill = v == true end
+TLG.ESPSetInfinite = function(v) ESP.Infinite = v == true end
 TLG.ESPSetDistance = function(v)
   local n = tonumber(v)
   ESP.MaxDistance = (not n or n <= 0) and math.huge or n
@@ -3358,7 +3290,8 @@ do
   Tog(PEs, "Box ESP", false, function(v) TLG.ESPToggleBox(v) end)
   Tog(PEs, "Tracer", false, function(v) TLG.ESPToggleTracer(v) end)
   Tog(PEs, "Relleno", true, function(v) TLG.ESPToggleFill(v) end)
-  Sli(PEs, "Rango ESP", 100, 10000, 5000,
+  Tog(PEs, "♾️ Distancia infinita", true, function(v) TLG.ESPSetInfinite(v) end)
+  Sli(PEs, "Rango ESP (si no es infinita)", 100, 10000, 5000,
     function(v) TLG.ESPSetDistance(v) end)
   Sli(PEs, "Transparencia relleno", 0, 100, 78,
     function(v) ESP.FillTransparency = v / 100 end)
@@ -3945,9 +3878,8 @@ if not V9ok then
   pcall(function() TLG.PNotif("⚠️ V9", tostring(V9err):sub(1, 70), C.Rd) end)
 end
 
--- FAB (visible por defecto)
+-- FAB: botones rápidos pequeños, rectangulares y separados (arrastrables uno a uno)
 local FSG = Instance.new("ScreenGui")
-
 FSG.Name = "TLG_FAB_Float"
 _G.TLG_FAB_GUI = FSG
 FSG.ResetOnSpawn = false
@@ -3956,27 +3888,12 @@ FSG.IgnoreGuiInset = true
 pcall(function() FSG.Parent = TLG.SP end)
 if not FSG.Parent then pcall(function() FSG.Parent = CG end) end
 
--- FAB GROUP 1 - MOVIMIENTO (God Orb, Fuga, Fly, Orbit Map)
 local FM = Instance.new("Frame", FSG)
-FM.Name = "FAB_Group1"
-FM.Size = UDim2.new(0,260,0,72)
-FM.Position = UDim2.new(0,10,1,-155)
-FM.BackgroundColor3 = C.BG
-FM.BackgroundTransparency = 0.2
+FM.Name = "FAB_Root"
+FM.Size = UDim2.fromScale(1, 1)
+FM.BackgroundTransparency = 1
 FM.BorderSizePixel = 0
 FM.ZIndex = 10
-FM.Visible = true
-
--- FAB GROUP 2 - PROTECCION (Anti Stun, Buff Tools, Anti Void, Anti Orbit)
-local FM2 = Instance.new("Frame", FSG)
-FM2.Name = "FAB_Group2"
-FM2.Size = UDim2.new(0,260,0,72)
-FM2.Position = UDim2.new(0,10,1,-75)
-FM2.BackgroundColor3 = C.BG
-FM2.BackgroundTransparency = 0.2
-FM2.BorderSizePixel = 0
-FM2.ZIndex = 10
-FM2.Visible = true
 TLG.FAB_Toggle_State = true
 TLG.FAB_Frame_Ref = FM
 TLG.FAB_SetVisible = function(v)
@@ -3989,113 +3906,161 @@ TLG.FAB_SetVisible = function(v)
   end
 end
 
-Instance.new("UICorner", FM).CornerRadius = UDim.new(0,12)
-Instance.new("UICorner", FM2).CornerRadius = UDim.new(0,12)
-local FStr = Instance.new("UIStroke", FM)
-local FStr2 = Instance.new("UIStroke", FM2)
-FStr2.Thickness = 2
-FStr2.Color = C.Yel
-FStr2.Transparency = 0.2
-FStr.Thickness = 2
-FStr.Color = C.Yel
-FStr.Transparency = 0.2
-TLG.PGlow(FStr, 0.1, 0.5, 1.5)
+local FAB_W, FAB_H, FAB_GAP = 88, 26, 6
+local FAB_BY_BTN = {}
+local FAB_ROWS = {0, 0}
 
-local FH = Instance.new("TextLabel", FM)
-FH.Size = UDim2.new(1,0,0,14)
-FH.Position = UDim2.new(0,0,0,2)
-FH.BackgroundTransparency = 1
-FH.Font = Enum.Font.GothamBold
-FH.Text = "💀 ACCIONES RÁPIDAS"
-FH.TextColor3 = C.Yel
-FH.TextSize = 8
-FH.ZIndex = 12
+local function fabViewport()
+  local vp = FSG.AbsoluteSize
+  if vp.X < 50 or vp.Y < 50 then
+    local cam = workspace.CurrentCamera
+    vp = cam and cam.ViewportSize or Vector2.new(800, 400)
+  end
+  return vp
+end
 
-local FHo = Instance.new("Frame", FM)
-FHo.Size = UDim2.new(1,-10,1,-20)
-FHo.Position = UDim2.new(0,5,0,18)
-FHo.BackgroundTransparency = 1
-FHo.ZIndex = 11
-local FLy = Instance.new("UIListLayout", FHo)
-FLy.FillDirection = Enum.FillDirection.Horizontal
-FLy.Padding = UDim.new(0,4)
-FLy.HorizontalAlignment = Enum.HorizontalAlignment.Center
-FLy.VerticalAlignment = Enum.VerticalAlignment.Center
+local function fabSaved(label)
+  local ok, v = pcall(function()
+    local t = TLG.CFG and TLG.CFG.fab
+    return t and t[label]
+  end)
+  if ok and type(v) == "table" and tonumber(v[1]) and tonumber(v[2]) then return v end
+  return nil
+end
 
-local FH2 = Instance.new("TextLabel", FM2)
-FH2.Size = UDim2.new(1,0,0,14)
-FH2.Position = UDim2.new(0,0,0,2)
-FH2.BackgroundTransparency = 1
-FH2.Font = Enum.Font.GothamBold
-FH2.Text = "🛡️ PROTECCION"
-FH2.TextColor3 = C.Yel
-FH2.TextSize = 8
-FH2.ZIndex = 12
+local function fabSave(b)
+  local f = FAB_BY_BTN[b]
+  if not f then return end
+  pcall(function()
+    local vp = fabViewport()
+    TLG.CFG = TLG.CFG or {}
+    TLG.CFG.fab = TLG.CFG.fab or {}
+    TLG.CFG.fab[f.label] = {b.Position.X.Offset / vp.X, b.Position.Y.Offset / vp.Y}
+    if TLG.saveSoon then TLG.saveSoon() end
+  end)
+end
 
-local FHo2 = Instance.new("Frame", FM2)
-FHo2.Size = UDim2.new(1,-10,1,-20)
-FHo2.Position = UDim2.new(0,5,0,18)
-FHo2.BackgroundTransparency = 1
-FHo2.ZIndex = 11
-local FLy2 = Instance.new("UIListLayout", FHo2)
-FLy2.FillDirection = Enum.FillDirection.Horizontal
-FLy2.Padding = UDim.new(0,4)
-FLy2.HorizontalAlignment = Enum.HorizontalAlignment.Center
-FLy2.VerticalAlignment = Enum.VerticalAlignment.Center
+local fdrag = {b = nil, input = nil, start = Vector2.zero, pos = Vector2.zero, moved = false}
+local function fabPointer(i)
+  return i.UserInputType == Enum.UserInputType.MouseButton1
+    or i.UserInputType == Enum.UserInputType.Touch
+end
 
-local function CF(i, t, cb, parent)
-  local targetParent = parent or FHo
-  local b = Instance.new("TextButton", targetParent)
-  b.Size = UDim2.new(0,55,0,46)
+-- col: 0 = movimiento, 1 = protección. get: función opcional que devuelve el estado real
+local function CF(icon, label, cb, col, get)
+  local row = FAB_ROWS[col + 1]
+  FAB_ROWS[col + 1] = row + 1
+  local vp = fabViewport()
+  local sv = fabSaved(label)
+  local px = sv and sv[1] * vp.X or (8 + col * (FAB_W + FAB_GAP))
+  local py = sv and sv[2] * vp.Y or (vp.Y - 64 - (4 - row) * (FAB_H + FAB_GAP))
+  px = math.clamp(px, 0, math.max(0, vp.X - FAB_W))
+  py = math.clamp(py, 0, math.max(0, vp.Y - FAB_H))
+
+  local b = Instance.new("TextButton", FM)
+  b.Name = "FAB_" .. label
+  b.Size = UDim2.fromOffset(FAB_W, FAB_H)
+  b.Position = UDim2.fromOffset(px, py)
   b.BackgroundColor3 = C.BG2
+  b.BackgroundTransparency = 0.1
   b.Text = ""
   b.BorderSizePixel = 0
   b.AutoButtonColor = false
   b.ZIndex = 12
-  b.ClipsDescendants = true
-  Instance.new("UICorner", b).CornerRadius = UDim.new(0,8)
+  Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
   local bS = Instance.new("UIStroke", b)
-  bS.Thickness = 2; bS.Color = C.Yel; bS.Transparency = 0.4
+  bS.Thickness = 1.5; bS.Color = C.Yel; bS.Transparency = 0.4
   local iL = Instance.new("TextLabel", b)
-  iL.Size = UDim2.new(1,0,0,22)
-  iL.Position = UDim2.new(0,0,0,4)
+  iL.Size = UDim2.new(0, 24, 1, 0)
+  iL.Position = UDim2.new(0, 3, 0, 0)
   iL.BackgroundTransparency = 1
-  iL.Text = i; iL.TextSize = 18
+  iL.Text = icon; iL.TextSize = 14
   iL.TextColor3 = C.Wh
   iL.Font = Enum.Font.GothamBold
   iL.ZIndex = 13
   local nL = Instance.new("TextLabel", b)
-  nL.Size = UDim2.new(1,0,0,10)
-  nL.Position = UDim2.new(0,0,1,-14)
+  nL.Size = UDim2.new(1, -28, 1, 0)
+  nL.Position = UDim2.new(0, 27, 0, 0)
   nL.BackgroundTransparency = 1
-  nL.Text = t; nL.TextColor3 = C.Wh
-  nL.TextSize = 7
+  nL.Text = label; nL.TextColor3 = C.Wh
+  nL.TextSize = 9
   nL.Font = Enum.Font.GothamBold
+  nL.TextXAlignment = Enum.TextXAlignment.Left
+  nL.TextTruncate = Enum.TextTruncate.AtEnd
   nL.ZIndex = 13
-  local function SA(s)
-    if s then
+
+  local f = {label = label, get = get, state = false}
+  function f.SA(s)
+    f.state = s == true
+    if f.state then
       b.BackgroundColor3 = C.Yel
+      b.BackgroundTransparency = 0
       iL.TextColor3 = C.BG
       nL.TextColor3 = C.BG
       bS.Color = C.Wh; bS.Transparency = 0
     else
       b.BackgroundColor3 = C.BG2
+      b.BackgroundTransparency = 0.1
       iL.TextColor3 = C.Wh
       nL.TextColor3 = C.Wh
       bS.Color = C.Yel; bS.Transparency = 0.4
     end
   end
-  b.Activated:Connect(function()
-    local ns = cb()
-    if ns ~= nil then SA(ns) end
+  function f.tap()
+    local ok, ns = pcall(cb)
+    if not ok then warn("[ZTB FAB] " .. label .. ": " .. tostring(ns)); return end
+    if ns ~= nil then f.SA(ns) end
+  end
+  FAB_BY_BTN[b] = f
+
+  b.InputBegan:Connect(function(i)
+    if fdrag.b or not fabPointer(i) then return end
+    fdrag.b = b
+    fdrag.input = i
+    fdrag.start = Vector2.new(i.Position.X, i.Position.Y)
+    fdrag.pos = Vector2.new(b.Position.X.Offset, b.Position.Y.Offset)
+    fdrag.moved = false
   end)
-  SA(false)
+  f.SA(false)
   return b
 end
 
+UIS.InputChanged:Connect(function(i)
+  local b = fdrag.b
+  if not b then return end
+  local same = (i == fdrag.input)
+    or (fdrag.input.UserInputType == Enum.UserInputType.MouseButton1
+        and i.UserInputType == Enum.UserInputType.MouseMovement)
+  if not same then return end
+  local d = Vector2.new(i.Position.X, i.Position.Y) - fdrag.start
+  if not fdrag.moved and d.Magnitude > 8 then fdrag.moved = true end
+  if fdrag.moved then
+    local vp = fabViewport()
+    local x = math.clamp(fdrag.pos.X + d.X, 0, math.max(0, vp.X - FAB_W))
+    local y = math.clamp(fdrag.pos.Y + d.Y, 0, math.max(0, vp.Y - FAB_H))
+    b.Position = UDim2.fromOffset(x, y)
+  end
+end)
+UIS.InputEnded:Connect(function(i)
+  local b = fdrag.b
+  if not b then return end
+  local same = (i == fdrag.input)
+    or (fdrag.input.UserInputType == Enum.UserInputType.MouseButton1
+        and i.UserInputType == Enum.UserInputType.MouseButton1)
+  if not same then return end
+  fdrag.b = nil
+  if fdrag.moved then
+    fabSave(b)
+  else
+    local f = FAB_BY_BTN[b]
+    if f then f.tap() end
+  end
+end)
+
+-- Columna 1: movimiento
 CF("🚀", "FUGA", function()
   if TLG.Fuga then TLG.Fuga() end
-end)
+end, 0)
 CF("✈", "FLY", function()
   if TLG.Fly.On then
     TLG.FlyE()
@@ -4104,28 +4069,27 @@ CF("✈", "FLY", function()
     TLG.FlyS()
     return true
   end
-end)
+end, 0, function() return TLG.Fly.On end)
 CF("🌀", "GOD ORB", function()
   local target = TLG.SelectedTarget
-  if not target or target == TLG.LP or not target.Parent then
-    TLG.PNotif("🌀 God Orb", "Seleccioná un jugador primero", C.Yel)
-    return false
-  end
-  local ch=target.Character
-  local hu=ch and ch:FindFirstChildOfClass("Humanoid")
-  local root=ch and ch:FindFirstChild("HumanoidRootPart")
-  if not hu or hu.Health<=0 or not root then
-    TLG.PNotif("🌀 God Orb", "El objetivo no está listo", C.Yel)
-    return false
-  end
   if TLG.GO.On then
     TLG.GOS()
     return false
   end
+  if not target or target == TLG.LP or not target.Parent then
+    TLG.PNotif("🌀 God Orb", "Seleccioná un jugador primero", C.Yel)
+    return false
+  end
+  local ch = target.Character
+  local hu = ch and ch:FindFirstChildOfClass("Humanoid")
+  local root = ch and ch:FindFirstChild("HumanoidRootPart")
+  if not hu or hu.Health <= 0 or not root then
+    TLG.PNotif("🌀 God Orb", "El objetivo no está listo", C.Yel)
+    return false
+  end
   TLG.GOSt(target)
   return true
-end)
-
+end, 0, function() return TLG.GO.On end)
 CF("🪐", "ORBIT MAP", function()
   if OM.On then
     TLG.OrbitalMapStop()
@@ -4134,9 +4098,9 @@ CF("🪐", "ORBIT MAP", function()
     TLG.OrbitalMapStart()
     return OM.On
   end
-end)
+end, 0, function() return OM.On end)
 
--- FAB GROUP 2 - Anti Stun, Buff Tools, Anti Void, Anti Orbit
+-- Columna 2: protección
 CF("💫", "ANTI STUN", function()
   if TLG.AntiStunState.On then
     TLG.AntiStunStop()
@@ -4145,9 +4109,8 @@ CF("💫", "ANTI STUN", function()
     TLG.AntiStunStart()
     return TLG.AntiStunState.On
   end
-end, FHo2)
-
-CF("🔧", "VISUAL SPEED", function()
+end, 1, function() return TLG.AntiStunState.On end)
+CF("🔧", "V. SPEED", function()
   local state = TLG.VisualSkillSpeed
   if not state then
     TLG.PNotif("🔧 Visual Speed", "Módulo no disponible", C.Rd)
@@ -4160,8 +4123,7 @@ CF("🔧", "VISUAL SPEED", function()
     TLG.VisualSkillSpeedStart()
     return state.On
   end
-end, FHo2)
-
+end, 1, function() return TLG.VisualSkillSpeed and TLG.VisualSkillSpeed.On end)
 CF("🕳️", "ANTI VOID", function()
   if TLG.AntiVoidState.On then
     TLG.AntiVoidStop()
@@ -4170,8 +4132,7 @@ CF("🕳️", "ANTI VOID", function()
     TLG.AntiVoidStart()
     return TLG.AntiVoidState.On
   end
-end, FHo2)
-
+end, 1, function() return TLG.AntiVoidState.On end)
 CF("🚫", "ANTI ORBIT", function()
   if TLG.AntiOrbitState.On then
     TLG.AntiOrbitStop()
@@ -4180,28 +4141,18 @@ CF("🚫", "ANTI ORBIT", function()
     TLG.AntiOrbitStart()
     return TLG.AntiOrbitState.On
   end
-end, FHo2)
+end, 1, function() return TLG.AntiOrbitState.On end)
 
-local fdg, fs, fp = false, nil, nil
-local fdg2, fs2, fp2 = false, nil, nil
-FH.InputBegan:Connect(function(i)
-  if i.UserInputType == Enum.UserInputType.MouseButton1
-    or i.UserInputType == Enum.UserInputType.Touch then
-    fdg = true; fs = i.Position; fp = FM.Position
-  end
-end)
-UIS.InputChanged:Connect(function(i)
-  if fdg and (i.UserInputType == Enum.UserInputType.MouseMovement
-    or i.UserInputType == Enum.UserInputType.Touch) then
-    local d = i.Position - fs
-    FM.Position = UDim2.new(fp.X.Scale, fp.X.Offset + d.X,
-      fp.Y.Scale, fp.Y.Offset + d.Y)
-  end
-end)
-UIS.InputEnded:Connect(function(i)
-  if i.UserInputType == Enum.UserInputType.MouseButton1
-    or i.UserInputType == Enum.UserInputType.Touch then
-    fdg = false
+-- Mantiene el color de cada FAB igual al estado real (menú, God Orb que termina solo, etc.)
+task.spawn(function()
+  while FSG.Parent do
+    for _, f in pairs(FAB_BY_BTN) do
+      if f.get then
+        local ok, v = pcall(f.get)
+        if ok and (v == true) ~= f.state then f.SA(v == true) end
+      end
+    end
+    task.wait(0.4)
   end
 end)
 
@@ -4798,7 +4749,7 @@ do
   do
     local vp = SG.AbsoluteSize
     if vp.X < 50 or vp.Y < 50 then vp = Vector2.new(800, 400) end
-    orbPos = Vector2.new(46, math.floor(vp.Y * 0.45))
+    orbPos = Vector2.new(46, math.floor(vp.Y * 0.3))
     orb.Position = UDim2.fromOffset(orbPos.X, orbPos.Y)
     TW:Create(orb, TweenInfo.new(0.6, EASE.Back, DIR.Out),
       {Size = UDim2.fromOffset(ORB, ORB)}):Play()
