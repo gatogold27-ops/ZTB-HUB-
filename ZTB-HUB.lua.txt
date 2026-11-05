@@ -3335,16 +3335,18 @@ do
   local skies = {
     {name="❌ Ninguno", ids=nil},
     {name="🏠 Sample", ids={"rbxassetid://162001887","rbxassetid://161998893","rbxassetid://162001897","rbxassetid://162001904","rbxassetid://162001919","rbxassetid://162001926"}},
-    {name="🌌 Galaxia", ids={"rbxassetid://159454299","rbxassetid://159454296","rbxassetid://159454293","rbxassetid://159454286","rbxassetid://159454300","rbxassetid://159454288"}},
+    {name="🌌 Galaxy", ids={"rbxassetid://159454299","rbxassetid://159454296","rbxassetid://159454293","rbxassetid://159454286","rbxassetid://159454300","rbxassetid://159454288"}},
     {name="🌠 Vaporwave", ids={"rbxassetid://8631780182","rbxassetid://8631784904","rbxassetid://8631769834","rbxassetid://8631777199","rbxassetid://8631735555","rbxassetid://8631782345"}},
     {name="🌅 Sunset", ids={"rbxassetid://323494035","rbxassetid://323494368","rbxassetid://323494130","rbxassetid://323494252","rbxassetid://323494067","rbxassetid://323493360"}},
     {name="🔵 Blue Space", ids={"rbxassetid://135483466","rbxassetid://135483484","rbxassetid://135483461","rbxassetid://135483495","rbxassetid://135483499","rbxassetid://135483475"}},
-    {name="🌸 Pink Daylight", ids={"rbxassetid://271042516","rbxassetid://271077243","rbxassetid://271042556","rbxassetid://271042310","rbxassetid://271042467","rbxassetid://271077958"}},
-    {name="🌇 Studio Sunset", ids={"rbxassetid://600830446","rbxassetid://600831635","rbxassetid://600832720","rbxassetid://600886090","rbxassetid://600833862","rbxassetid://600835177"}},
-    {name="🌃 Noche", ids={"rbxassetid://12064107","rbxassetid://12064152","rbxassetid://12064121","rbxassetid://12063984","rbxassetid://12064115","rbxassetid://12064131"}},
-    {name="⭐ Negro con estrellas", ids={"","","","","",""}},
-    {name="☀️ Roblox por defecto", ids={"rbxasset://textures/sky/sky512_bk.tex","rbxasset://textures/sky/sky512_dn.tex","rbxasset://textures/sky/sky512_ft.tex","rbxasset://textures/sky/sky512_lf.tex","rbxasset://textures/sky/sky512_rt.tex","rbxasset://textures/sky/sky512_up.tex"}},
-    {name="🪐 Blue Planet", ids={"rbxassetid://218955819","rbxassetid://218953419","rbxassetid://218954524","rbxassetid://218958493","rbxassetid://218957134","rbxassetid://218950090"}}
+    {name="🌃 Red Night", ids={"rbxassetid://401664839","rbxassetid://401664862","rbxassetid://401664960","rbxassetid://401664881","rbxassetid://401664901","rbxassetid://401664936"}},
+    {name="🪐 Blue Planet", ids={"rbxassetid://218955819","rbxassetid://218953419","rbxassetid://218954524","rbxassetid://218958493","rbxassetid://218957134","rbxassetid://218950090"}},
+    {name="🌍 Blue Planet 2", ids={"rbxassetid://16888989874","rbxassetid://16888991855","rbxassetid://16888995219","rbxassetid://16888998994","rbxassetid://16889000916","rbxassetid://16889004122"}},
+    {name="🌆 Twilight", ids={"rbxassetid://264908339","rbxassetid://264907909","rbxassetid://264909420","rbxassetid://264909758","rbxassetid://264908886","rbxassetid://264907379"}},
+    {name="☁️ Vivid Skies", ids={"rbxassetid://271042516","rbxassetid://271077243","rbxassetid://271042556","rbxassetid://271042310","rbxassetid://271042467","rbxassetid://271077958"}},
+    {name="✨ Elysium", ids={"rbxassetid://1898724755","rbxassetid://1898727189","rbxassetid://1898722814","rbxassetid://1898729298","rbxassetid://1898741025","rbxassetid://1898736761"}},
+    {name="💗 Vaporwave 2", ids={"rbxassetid://1417494030","rbxassetid://1417494146","rbxassetid://1417494253","rbxassetid://1417494402","rbxassetid://1417494499","rbxassetid://1417494643"}},
+    {name="🌈 Aurora", ids={"rbxassetid://87940909296156","rbxassetid://103510771527492","rbxassetid://85585087312696","rbxassetid://130745713571518","rbxassetid://84365244722499","rbxassetid://70997945956227"}}
   }
   for _, s in ipairs(skies) do
     Btn(PVi, s.name, C.Yel, function()
