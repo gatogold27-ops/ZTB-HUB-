@@ -2789,27 +2789,33 @@ function TLG.HipHeightStop()
   if hu then pcall(function() hu.HipHeight = 2 end) end
 end
 
+-- ORBITAL MAP FIX: trayectoria circular continua, sin saltos aleatorios.
 local OM = {On=false, Distance=250, Height=80, Speed=35,
-  Chaos=100, ChaosOn=true, Angle=0, Connection=nil}
+  Angle=0, Connection=nil, Center=nil}
 TLG.OrbitalMapState = OM
-local omRng = Random.new()
+
 local function omRoot()
   local ch = TLG.LP and TLG.LP.Character
   return ch and ch:FindFirstChild("HumanoidRootPart")
 end
+
 function TLG.OrbitalMapStart()
   if OM.On then return end
-  local r = omRoot()
-  if not r then return end
-  pcall(function() if TLG.GO and TLG.GO.On then TLG.GOS() end end)
+  local root = omRoot()
+  if not root then
+    TLG.PNotif("🌀 Orbital Map", "No se encontró tu personaje", C.Yel)
+    return
+  end
+
+  -- Evita que God Orb controle el mismo HumanoidRootPart al mismo tiempo.
+  pcall(function()
+    if TLG.GO and TLG.GO.On then TLG.GOS() end
+  end)
 
   OM.On = true
   OM.Angle = 0
+  OM.Center = root.Position
 
-  local center = r.Position
-  local TAU = math.pi * 2
-  -- PreSimulation: la posición se escribe justo antes de cada paso de física,
-  -- que es la que se replica al servidor.
   OM.Connection = RS.PreSimulation:Connect(function(dt)
     if not OM.On then return end
 
@@ -2818,63 +2824,63 @@ function TLG.OrbitalMapStart()
       TLG.OrbitalMapStop()
       return
     end
+
     local hum = cur.Parent:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then
       TLG.OrbitalMapStop()
       return
     end
 
-    local chaos = OM.ChaosOn and (OM.Chaos / 100) or 0
-    local step = math.rad(OM.Speed) * dt
-    if chaos > 0 then
-      if step > 1.2 then
-        -- A mucha velocidad un giro constante se ve "lento" desde fuera
-        -- (efecto estroboscópico) y el aimbot lo sigue. Ángulo al azar.
-        OM.Angle = omRng:NextNumber(0, TAU)
-      else
-        OM.Angle = (OM.Angle + step * (1 + (omRng:NextNumber() * 2 - 1) * 0.9 * chaos)) % TAU
-      end
-    else
-      OM.Angle = (OM.Angle + step) % TAU
-    end
+    -- Integración angular por delta-time: la velocidad es grados por segundo.
+    -- No se elige un ángulo aleatorio ni se inyectan velocidades falsas.
+    local angularSpeed = math.rad(math.clamp(OM.Speed, 1, 360))
+    OM.Angle = (OM.Angle + angularSpeed * math.max(dt, 0)) % (math.pi * 2)
 
-    local dist, hgt = OM.Distance, OM.Height
-    if chaos > 0 then
-      dist = dist * (1 + (omRng:NextNumber() * 2 - 1) * 0.35 * chaos)
-      hgt = hgt + omRng:NextNumber() * OM.Distance * 0.4 * chaos -- solo hacia arriba
-    end
-    local targetPos = center + Vector3.new(math.cos(OM.Angle) * dist, hgt,
-      math.sin(OM.Angle) * dist)
+    local distance = math.clamp(OM.Distance, 25, 2000)
+    local height = math.clamp(OM.Height, -500, 1000)
+    local center = OM.Center or cur.Position
+    local offset = Vector3.new(
+      math.cos(OM.Angle) * distance,
+      height,
+      math.sin(OM.Angle) * distance
+    )
+    local targetPos = center + offset
 
     pcall(function()
       cur.CFrame = CFrame.lookAt(targetPos, center)
-      if chaos > 0 then
-        -- velocidad falsa aleatoria: rompe la predicción por velocidad
-        cur.AssemblyLinearVelocity = omRng:NextUnitVector() * 1500 * chaos
-        cur.AssemblyAngularVelocity = Vector3.zero
-      end
     end)
   end)
+
+  TLG.PNotif("🌀 Orbital Map", "Órbita continua activada", C.Grn)
 end
+
 function TLG.OrbitalMapStop()
   OM.On = false
   if OM.Connection then
-    pcall(function() OM.Connection:Disconnect() end); OM.Connection = nil
+    pcall(function() OM.Connection:Disconnect() end)
+    OM.Connection = nil
   end
-  local r = omRoot()
-  if r then pcall(function() r.AssemblyLinearVelocity = Vector3.zero end) end
+  OM.Center = nil
+  local root = omRoot()
+  if root then
+    pcall(function()
+      root.AssemblyLinearVelocity = Vector3.zero
+      root.AssemblyAngularVelocity = Vector3.zero
+    end)
+  end
+  TLG.PNotif("🌀 Orbital Map", "Detenido", C.Rd)
 end
+
 function TLG.OrbitalMapSetDistance(v)
   OM.Distance = math.clamp(tonumber(v) or 250, 25, 2000)
 end
+
 function TLG.OrbitalMapSetHeight(v)
   OM.Height = math.clamp(tonumber(v) or 80, -500, 1000)
 end
+
 function TLG.OrbitalMapSetSpeed(v)
-  OM.Speed = math.clamp(tonumber(v) or 35, 1, 20000)
-end
-function TLG.OrbitalMapSetChaos(v)
-  OM.Chaos = math.clamp(tonumber(v) or 100, 0, 100)
+  OM.Speed = math.clamp(tonumber(v) or 35, 1, 360)
 end
 
 -- TOOLS TAB
@@ -2903,7 +2909,7 @@ do
     function(v) TLG.FugaSetHeight(v) end)
 
   Sec(PTo, "🌀 ORBITAL MAP", "🌀")
-  Lbl(PTo, "Con Caos activo la posición salta al azar (rompe el aimbot enemigo).", C.Gr)
+  Lbl(PTo, "El personaje da vueltas continuamente alrededor del punto inicial; sin teletransportes aleatorios.", C.Gr)
 
   Tog(PTo, "Orbital Mapa", false, function(v)
     if v then TLG.OrbitalMapStart() else TLG.OrbitalMapStop() end
@@ -2912,11 +2918,8 @@ do
     function(v) TLG.OrbitalMapSetDistance(v) end)
   Sli(PTo, "Altura", -500, 1000, 80,
     function(v) TLG.OrbitalMapSetHeight(v) end)
-  Sli(PTo, "Velocidad", 1, 20000, 35,
+  Sli(PTo, "Velocidad (grados/seg)", 1, 360, 35,
     function(v) TLG.OrbitalMapSetSpeed(v) end)
-  Tog(PTo, "Caos anti-aimbot", true, function(v) OM.ChaosOn = v == true end)
-  Sli(PTo, "Caos (%)", 0, 100, 100,
-    function(v) TLG.OrbitalMapSetChaos(v) end)
 
   Sec(PTo, "👻 NOCLIP / JUMP", "👻")
   Tog(PTo, "Noclip", false, function(v)
