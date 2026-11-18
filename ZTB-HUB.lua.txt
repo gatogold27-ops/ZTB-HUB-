@@ -11,7 +11,8 @@ local TPS = game:GetService("TeleportService")
 local LIGHT = game:GetService("Lighting")
 local Lighting = LIGHT
 
-_G.TLG = _G.TLG or {}
+pcall(function() if _G.TLG and _G.TLG.Panic then _G.TLG.Panic() end end)
+_G.TLG = {}
 local TLG = _G.TLG
 TLG.LP = PLR.LocalPlayer
 TLG.Cam = workspace.CurrentCamera
@@ -539,7 +540,7 @@ function TLG.SpSt(p)
 end
 
 -- FLY (con boost Shift)
-TLG.Fly = {On=false, Spd=15000, BoostMul=3, Boost=false,
+TLG.Fly = {On=false, Spd=300, BoostMul=3, Boost=false,
   C=nil, Noclip=true, CollisionOriginal={}, Keys={Up=false, Down=false}}
 local function flyCleanup(h)
   if not h then return end
@@ -832,13 +833,14 @@ function TLG.AntiOrbitStart()
 end
 
 function TLG.AntiOrbitStop()
+  local was = AntiOrbit.On
   AntiOrbit.On = false
   if AntiOrbit.Conn then
     pcall(function() AntiOrbit.Conn:Disconnect() end)
     AntiOrbit.Conn = nil
   end
   antiOrbitReset()
-  TLG.PNotif("🛡️ Anti Orbit", "❌ Desactivado", C.Rd)
+  if was then TLG.PNotif("🛡️ Anti Orbit", "❌ Desactivado", C.Rd) end
 end
 
 -- PROTECCIONES
@@ -873,7 +875,11 @@ function TLG.AntiFlingStart()
     local ch = TLG.LP.Character; if not ch then return end
     local h = ch:FindFirstChild("HumanoidRootPart")
     local hu = ch:FindFirstChildOfClass("Humanoid")
-    if h and hu and hu.PlatformStand then hu.PlatformStand = false end
+    if h and hu and hu.PlatformStand and not TLG.Fly.On
+      and not (TLG.GO and TLG.GO.On)
+      and not (TLG.OrbitalMapState and TLG.OrbitalMapState.On) then
+      hu.PlatformStand = false
+    end
     if h then
       local av = h.AssemblyLinearVelocity
       if av.Magnitude > 500 and not TLG.Fly.On then
@@ -933,6 +939,8 @@ function TLG.Panic()
   pcall(function() TLG.AntiStunStop() end)
   pcall(function() TLG.AntiOrbitStop() end)
   pcall(function() TLG.NoclipStop() end)
+  pcall(function() if TLG.OrbitalMapState and TLG.OrbitalMapState.On then TLG.OrbitalMapStop() end end)
+  pcall(function() TLG.InfHitStop() end)
   pcall(function() TLG.InfJumpStop() end)
   pcall(function() TLG.ClickTPStop() end)
   pcall(function() TLG.AntiAFKStop() end)
@@ -974,11 +982,24 @@ pcall(function()
 end)
 
 -- AUTO COLLECT
-local AutoPrompt = {On=false, Conn=nil, Range=25, LastScan=0, Interval=1.0}
+local AutoPrompt = {On=false, Conn=nil, Added=nil, Range=25, LastScan=0, Interval=1.0,
+  Cache=setmetatable({}, {__mode="k"})}
 function TLG.AutoPromptStart()
   if AutoPrompt.On then return end
   AutoPrompt.On = true
   AutoPrompt.LastScan = 0
+  task.spawn(function()
+    local n = 0
+    for _, d in ipairs(workspace:GetDescendants()) do
+      if not AutoPrompt.On then return end
+      if d:IsA("ProximityPrompt") then AutoPrompt.Cache[d] = true end
+      n = n + 1
+      if n % 2000 == 0 then task.wait() end
+    end
+  end)
+  AutoPrompt.Added = workspace.DescendantAdded:Connect(function(d)
+    if d:IsA("ProximityPrompt") then AutoPrompt.Cache[d] = true end
+  end)
   AutoPrompt.Conn = RS.Heartbeat:Connect(function()
     if not AutoPrompt.On then return end
     local now = os.clock()
@@ -987,8 +1008,8 @@ function TLG.AutoPromptStart()
     local h = TLG.LP.Character
       and TLG.LP.Character:FindFirstChild("HumanoidRootPart")
     if not h then return end
-    for _, p in ipairs(workspace:GetDescendants()) do
-      if p:IsA("ProximityPrompt") and p.Enabled
+    for p in pairs(AutoPrompt.Cache) do
+      if p.Parent and p:IsA("ProximityPrompt") and p.Enabled
         and p.Parent and p.Parent:IsA("BasePart") then
         local d = (p.Parent.Position - h.Position).Magnitude
         if d <= AutoPrompt.Range then
@@ -1003,6 +1024,7 @@ function TLG.AutoPromptStart()
 end
 function TLG.AutoPromptStop()
   AutoPrompt.On = false
+  if AutoPrompt.Added then pcall(function() AutoPrompt.Added:Disconnect() end); AutoPrompt.Added = nil end
   if AutoPrompt.Conn then
     pcall(function() AutoPrompt.Conn:Disconnect() end); AutoPrompt.Conn = nil
   end
@@ -2159,6 +2181,75 @@ if not infoOK then
   el.ZIndex = 5
 end
 
+-- ♾️ HIT INFINITO (NPCs + jugadores, sin cooldown)
+do
+  local IH = {On=false, Conn=nil, Added=nil, Range=60, NPCs=true, Players=true,
+    Last=0, Rate=0.05, Max=10, Token=0, Targets=setmetatable({}, {__mode="k"})}
+  TLG.InfHit = IH
+  local function addHum(d)
+    if d:IsA("Humanoid") then IH.Targets[d] = true end
+  end
+  function TLG.InfHitStart()
+    if IH.On then return end
+    IH.On = true
+    IH.Token = IH.Token + 1
+    local my = IH.Token
+    task.spawn(function()
+      local n = 0
+      for _, d in ipairs(workspace:GetDescendants()) do
+        if not IH.On or IH.Token ~= my then return end
+        addHum(d)
+        n = n + 1
+        if n % 2000 == 0 then task.wait() end
+      end
+    end)
+    IH.Added = workspace.DescendantAdded:Connect(addHum)
+    IH.Conn = RS.Heartbeat:Connect(function()
+      if not IH.On then return end
+      local now = os.clock()
+      if now - IH.Last < IH.Rate then return end
+      IH.Last = now
+      local ch = TLG.LP.Character
+      local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+      local tool = ch and ch:FindFirstChildOfClass("Tool")
+      if not hrp or not tool then return end
+      local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+      local pos = hrp.Position
+      local hits = 0
+      for hum in pairs(IH.Targets) do
+        local m = hum.Parent
+        if m and m ~= ch and hum.Health > 0 then
+          local isPlr = PLR:GetPlayerFromCharacter(m) ~= nil
+          if (isPlr and IH.Players) or ((not isPlr) and IH.NPCs) then
+            local r = m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Torso")
+            if r and (r.Position - pos).Magnitude <= IH.Range then
+              hits = hits + 1
+              if handle and firetouchinterest then
+                pcall(function()
+                  firetouchinterest(handle, r, 0)
+                  firetouchinterest(handle, r, 1)
+                end)
+              end
+              if hits >= IH.Max then break end
+            end
+          end
+        end
+      end
+      if hits > 0 then pcall(function() tool:Activate() end) end
+    end)
+    TLG.PNotif("♾️ Hit Infinito", "✅ Activado", C.Grn)
+  end
+  function TLG.InfHitStop()
+    local was = IH.On
+    IH.On = false
+    IH.Token = IH.Token + 1
+    if IH.Conn then pcall(function() IH.Conn:Disconnect() end); IH.Conn = nil end
+    if IH.Added then pcall(function() IH.Added:Disconnect() end); IH.Added = nil end
+    IH.Targets = setmetatable({}, {__mode="k"})
+    if was then TLG.PNotif("♾️ Hit Infinito", "❌ Desactivado", C.Rd) end
+  end
+end
+
 -- COMBAT TAB
 do
   Sec(PCb, "⚡ FAST HIT", "⚡")
@@ -2175,6 +2266,16 @@ do
     FA.BurstInterval = math.clamp(v / 1000, 0.03, 0.10)
   end)
   Lbl(PCb, "Usa tu herramienta equipada; funciona según los objetivos que permita el juego (NPC/jugadores).", C.Gr)
+
+  Sec(PCb, "♾️ HIT INFINITO", "♾️")
+  Tog(PCb, "Activar Hit Infinito", false, function(v)
+    if v then TLG.InfHitStart() else TLG.InfHitStop() end
+  end)
+  Tog(PCb, "Golpear NPCs", true, function(v) TLG.InfHit.NPCs = v == true end)
+  Tog(PCb, "Golpear jugadores", true, function(v) TLG.InfHit.Players = v == true end)
+  Sli(PCb, "Rango del hit", 10, 500, 60, function(v) TLG.InfHit.Range = v end)
+  Sli(PCb, "Pausa entre hits (ms)", 20, 300, 50, function(v) TLG.InfHit.Rate = v / 1000 end)
+  Lbl(PCb, "Equipa tu arma. Golpea todo lo que esté en rango (máx. 10 por ciclo).", C.Gr)
 
   Sec(PCb, "🔵 HITBOX MANUAL", "🔵")
   Tog(PCb, "Activar Hitbox", false, function(v)
@@ -2443,7 +2544,7 @@ do
   Tog(PFl, "Activar Fly", false, function(v)
     if v then TLG.FlyS() else TLG.FlyE() end
   end)
-  Sli(PFl, "Velocidad", 100, 50000, 15000, function(v)
+  Sli(PFl, "Velocidad", 100, 50000, 300, function(v)
     TLG.Fly.Spd = v
   end)
   Sli(PFl, "Multiplicador Boost (Shift)", 2, 10, 3, function(v)
@@ -2652,11 +2753,13 @@ function TLG.ClickTPStart()
       and UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
       local cam = TLG.Cam or workspace.CurrentCamera
       if not cam then return end
-      local m = TLG.LP:GetMouse()
-      local u = cam:ScreenPointToRay(m.X, m.Y)
-      local ray = Ray.new(u.Origin, u.Direction * 2000)
-      local _, pos = workspace:FindPartOnRayWithIgnoreList(ray,
-        {TLG.LP.Character})
+      local ml = UIS:GetMouseLocation()
+      local u = cam:ViewportPointToRay(ml.X, ml.Y)
+      local rp = RaycastParams.new()
+      rp.FilterType = Enum.RaycastFilterType.Exclude
+      rp.FilterDescendantsInstances = {TLG.LP.Character}
+      local rh = workspace:Raycast(u.Origin, u.Direction * 2000, rp)
+      local pos = rh and rh.Position
       if pos then
         local h = TLG.LP.Character
           and TLG.LP.Character:FindFirstChild("HumanoidRootPart")
@@ -2695,6 +2798,18 @@ local NoFall = {On=false, Conn=nil, CharConn=nil}
 function TLG.NoFallStart()
   if NoFall.On then return end
   NoFall.On = true
+  if NoFall.Vel then pcall(function() NoFall.Vel:Disconnect() end) end
+  NoFall.Vel = RS.Heartbeat:Connect(function()
+    if not NoFall.On then return end
+    local c = TLG.LP.Character
+    local r = c and c:FindFirstChild("HumanoidRootPart")
+    if r and not TLG.Fly.On then
+      local v = r.AssemblyLinearVelocity
+      if v.Y < -90 then
+        r.AssemblyLinearVelocity = Vector3.new(v.X, -40, v.Z)
+      end
+    end
+  end)
   local function hook(hu)
     if not hu then return end
     if NoFall.Conn then
@@ -2702,8 +2817,7 @@ function TLG.NoFallStart()
     end
     NoFall.Conn = hu.StateChanged:Connect(function(_, new)
       if not NoFall.On then return end
-      if new == Enum.HumanoidStateType.Freefall
-        or new == Enum.HumanoidStateType.FallingDown then
+      if new == Enum.HumanoidStateType.FallingDown then
         pcall(function()
           hu:ChangeState(Enum.HumanoidStateType.GettingUp)
         end)
@@ -2720,6 +2834,7 @@ function TLG.NoFallStart()
 end
 function TLG.NoFallStop()
   NoFall.On = false
+  if NoFall.Vel then pcall(function() NoFall.Vel:Disconnect() end); NoFall.Vel = nil end
   if NoFall.Conn then
     pcall(function() NoFall.Conn:Disconnect() end); NoFall.Conn = nil
   end
@@ -2855,6 +2970,7 @@ function TLG.OrbitalMapStart()
 end
 
 function TLG.OrbitalMapStop()
+  local was = OM.On
   OM.On = false
   if OM.Connection then
     pcall(function() OM.Connection:Disconnect() end)
@@ -2868,7 +2984,7 @@ function TLG.OrbitalMapStop()
       root.AssemblyAngularVelocity = Vector3.zero
     end)
   end
-  TLG.PNotif("🌀 Orbital Map", "Detenido", C.Rd)
+  if was then TLG.PNotif("🌀 Orbital Map", "Detenido", C.Rd) end
 end
 
 function TLG.OrbitalMapSetDistance(v)
@@ -2892,14 +3008,7 @@ do
   Lbl(PTo, "Muestra u oculta los botones rápidos flotantes.", C.Gr)
 
   Sec(PTo, "🔧 MOVIMIENTO", "🔧")
-  Tog(PTo, "Fly", false, function(v)
-    if v then TLG.FlyS() else TLG.FlyE() end
-  end)
-  Sli(PTo, "Velocidad Fly", 100, 20000, TLG.Fly.Spd,
-    function(v) TLG.Fly.Spd = v end)
-  Tog(PTo, "Speed", false, function(v) TLG.SetSpeedEnabled(v) end)
-  Sli(PTo, "Velocidad", 16, 1000, TLG.Speed.Val,
-    function(v) TLG.Speed.Val = v end)
+  Lbl(PTo, "Fly y Speed están en la pestaña Fly.", C.Gr)
 
   Sec(PTo, "🚀 FUGA", "🚀")
   Btn(PTo, "🚀 Ejecutar Fuga", C.Yel, function()
@@ -4149,6 +4258,15 @@ CF("🚫", "ANTI ORBIT", function()
     return TLG.AntiOrbitState.On
   end
 end, 1, function() return TLG.AntiOrbitState.On end)
+CF("♾️", "HIT INF", function()
+  if TLG.InfHit.On then
+    TLG.InfHitStop()
+    return false
+  else
+    TLG.InfHitStart()
+    return TLG.InfHit.On
+  end
+end, 1, function() return TLG.InfHit.On end)
 
 -- Mantiene el color de cada FAB igual al estado real (menú, God Orb que termina solo, etc.)
 task.spawn(function()
@@ -4189,7 +4307,7 @@ WTx.Size = UDim2.new(1,-56,1,0)
 WTx.Position = UDim2.new(0,28,0,0)
 WTx.BackgroundTransparency = 1
 WTx.Font = Enum.Font.GothamBold
-WTx.Text = "ZTB HUB V9.4.7"
+WTx.Text = "ZTB HUB V9.5"
 WTx.TextSize = 9; WTx.TextColor3 = C.Wh
 WTx.TextXAlignment = Enum.TextXAlignment.Left
 WTx.ZIndex = 51
@@ -4805,7 +4923,7 @@ task.spawn(function()
     t2.Font = Enum.Font.Gotham
     t2.TextSize = 14
     t2.TextColor3 = C.Gr
-    t2.Text = "Meme Sea • V9.4.7"
+    t2.Text = "Meme Sea • V9.5"
     t2.TextTransparency = 1
     t2.ZIndex = 501
     local ti = TweenInfo.new(0.45)
@@ -4827,6 +4945,6 @@ pcall(function()
     {Size = W_S, Position = W_P}):Play()
 end)
 task.wait(0.9)
-TLG.PNotif("👑 ZTB HUB V9.4.7", "💀 Ghost Hitbox + Fly Boost", C.Yel)
+TLG.PNotif("👑 ZTB HUB V9.5", "💀 Ghost Hitbox + Fly Boost", C.Yel)
 
-print("[ZTB HUB V9.4.7] 💀 Cargado")
+print("[ZTB HUB V9.5] 💀 Cargado")
