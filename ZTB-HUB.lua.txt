@@ -10,6 +10,7 @@ local HS = game:GetService("HttpService")
 local TPS = game:GetService("TeleportService")
 local LIGHT = game:GetService("Lighting")
 local Lighting = LIGHT
+local STATS = game:GetService("Stats")
 
 pcall(function() if _G.TLG and _G.TLG.Panic then _G.TLG.Panic() end end)
 _G.TLG = {}
@@ -70,8 +71,34 @@ TLG.SG = SG
 
 function TLG.getPing()
   local p = 0
-  pcall(function() p = math.floor((TLG.LP:GetNetworkPing() or 0) * 1000) end)
+  pcall(function() p = math.floor((TLG.LP:GetNetworkPing() or 0) * 1000 + 0.5) end)
   return p
+end
+
+-- Monitor de rendimiento: una sola conexión, actualizada una vez por segundo.
+TLG.Performance = {FPS = 0, Ping = 0, MemoryMB = 0, Connection = nil}
+function TLG.PerformanceStart()
+  local perf = TLG.Performance
+  if perf.Connection then return end
+  local frames, last = 0, os.clock()
+  perf.Connection = RS.RenderStepped:Connect(function()
+    frames = frames + 1
+    local now = os.clock()
+    if now - last >= 1 then
+      perf.FPS = math.floor(frames / math.max(now - last, 0.001) + 0.5)
+      perf.Ping = TLG.getPing()
+      pcall(function() perf.MemoryMB = math.floor(STATS:GetTotalMemoryUsageMb() + 0.5) end)
+      if perf.OnUpdate then pcall(perf.OnUpdate, perf) end
+      frames, last = 0, now
+    end
+  end)
+end
+function TLG.PerformanceStop()
+  local perf = TLG.Performance
+  if perf.Connection then
+    pcall(function() perf.Connection:Disconnect() end)
+    perf.Connection = nil
+  end
 end
 
 local Themes = {
@@ -498,7 +525,8 @@ function TLG.GOSt(p)
     local mhu = mc:FindFirstChildOfClass("Humanoid")
     if not mh or not mhu then TLG.GOS(); return end
     mh.Anchored = true; mhu.PlatformStand = true
-    TLG.GO.C = RS.PreSimulation:Connect(function(dt)
+    local goSignal = RS.PreSimulation or RS.Heartbeat
+    TLG.GO.C = goSignal:Connect(function(dt)
       if not TLG.GO.On or not TLG.GO.T or not TLG.GO.T.Parent then
         TLG.GOS(); return
       end
@@ -927,6 +955,7 @@ end
 
 -- PANIC
 function TLG.Panic()
+  pcall(function() TLG.PerformanceStop() end)
   pcall(function() TLG.FlyE() end)
   pcall(function() TLG.HBStop() end)
   pcall(function() TLG.GOS() end)
@@ -1402,8 +1431,8 @@ SubTitle.TextXAlignment = Enum.TextXAlignment.Center
 SubTitle.ZIndex = 10
 
 local StatsPanel = Instance.new("Frame", TB)
-StatsPanel.Size = UDim2.new(0,112,0,20)
-StatsPanel.Position = UDim2.new(1,-154,0,3)
+StatsPanel.Size = UDim2.new(0,190,0,20)
+StatsPanel.Position = UDim2.new(1,-232,0,3)
 StatsPanel.BackgroundColor3 = C.BG3
 StatsPanel.BackgroundTransparency = 0.3
 StatsPanel.BorderSizePixel = 0
@@ -1415,42 +1444,31 @@ StatS.Color = C.Yel
 StatS.Thickness = 1
 StatS.Transparency = 0.6
 
-local FpsLabel = Instance.new("TextLabel", StatsPanel)
-FpsLabel.Size = UDim2.new(0.5,-6,1,0)
-FpsLabel.Position = UDim2.new(0,4,0,0)
-FpsLabel.BackgroundTransparency = 1
-FpsLabel.Font = Enum.Font.GothamBold
-FpsLabel.Text = "FPS: --"
-FpsLabel.TextColor3 = C.Grn
-FpsLabel.TextSize = 9
-FpsLabel.TextXAlignment = Enum.TextXAlignment.Left
-FpsLabel.ZIndex = 9
+local function makeStatLabel(name, width, x, color, align)
+  local label = Instance.new("TextLabel", StatsPanel)
+  label.Name = name
+  label.Size = UDim2.new(0,width,1,0)
+  label.Position = UDim2.new(0,x,0,0)
+  label.BackgroundTransparency = 1
+  label.Font = Enum.Font.GothamBold
+  label.Text = name .. ": --"
+  label.TextColor3 = color
+  label.TextSize = 9
+  label.TextXAlignment = align or Enum.TextXAlignment.Left
+  label.ZIndex = 9
+  return label
+end
+local FpsLabel = makeStatLabel("FPS", 54, 4, C.Grn)
+local PingLabel = makeStatLabel("PING", 62, 63, C.Cyan)
+local MemLabel = makeStatLabel("RAM", 58, 128, C.Yel, Enum.TextXAlignment.Right)
 
-local PingLabel = Instance.new("TextLabel", StatsPanel)
-PingLabel.Size = UDim2.new(0.5,-6,1,0)
-PingLabel.Position = UDim2.new(0.5,2,0,0)
-PingLabel.BackgroundTransparency = 1
-PingLabel.Font = Enum.Font.GothamBold
-PingLabel.Text = "Ping: --"
-PingLabel.TextColor3 = C.Cyan
-PingLabel.TextSize = 9
-PingLabel.TextXAlignment = Enum.TextXAlignment.Right
-PingLabel.ZIndex = 9
-
-task.spawn(function()
-    local fc = 0
-    local lt = os.clock()
-    RS.RenderStepped:Connect(function()
-        fc = fc + 1
-        local n = os.clock()
-        if n - lt >= 1 then
-            FpsLabel.Text = "FPS: " .. math.floor(fc / (n - lt))
-            PingLabel.Text = "Ping: " .. TLG.getPing() .. "ms"
-            fc = 0
-            lt = n
-        end
-    end)
-end)
+TLG.Performance.OnUpdate = function(perf)
+  if not SG or not SG.Parent then return end
+  FpsLabel.Text = "FPS: " .. tostring(perf.FPS)
+  PingLabel.Text = "PING: " .. tostring(perf.Ping) .. "ms"
+  MemLabel.Text = "RAM: " .. tostring(perf.MemoryMB) .. "MB"
+end
+TLG.PerformanceStart()
 
 local STtl = Instance.new("TextLabel", TB)
 STtl.Size = UDim2.new(0,60,1,0)
@@ -2931,7 +2949,8 @@ function TLG.OrbitalMapStart()
   OM.Angle = 0
   OM.Center = root.Position
 
-  OM.Connection = RS.PreSimulation:Connect(function(dt)
+  local orbitSignal = RS.PreSimulation or RS.Heartbeat
+  OM.Connection = orbitSignal:Connect(function(dt)
     if not OM.On then return end
 
     local cur = omRoot()
@@ -4923,7 +4942,7 @@ task.spawn(function()
     t2.Font = Enum.Font.Gotham
     t2.TextSize = 14
     t2.TextColor3 = C.Gr
-    t2.Text = "Meme Sea • V9.5"
+    t2.Text = "Meme Sea • V6 FIXED"
     t2.TextTransparency = 1
     t2.ZIndex = 501
     local ti = TweenInfo.new(0.45)
@@ -4945,6 +4964,6 @@ pcall(function()
     {Size = W_S, Position = W_P}):Play()
 end)
 task.wait(0.9)
-TLG.PNotif("👑 ZTB HUB V9.5", "💀 Ghost Hitbox + Fly Boost", C.Yel)
+TLG.PNotif("👑 ZTB HUB V6 FIXED", "💀 Skull Edition + Performance", C.Yel)
 
-print("[ZTB HUB V9.5] 💀 Cargado")
+print("[ZTB HUB V6 FIXED] 💀 Cargado")
