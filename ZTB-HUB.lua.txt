@@ -2388,6 +2388,33 @@ do
     return false
   end
 
+  local function short(v, d)
+    d = d or 0
+    local t = typeof(v)
+    if t == "Instance" then return "Instance:" .. v.ClassName .. ":" .. v:GetFullName()
+    elseif t == "table" then
+      if d > 1 then return "{...}" end
+      local p, n = {}, 0
+      for k, x in pairs(v) do
+        n = n + 1
+        if n > 6 then p[#p + 1] = "..." break end
+        p[#p + 1] = tostring(k) .. "=" .. short(x, d + 1)
+      end
+      return "{" .. table.concat(p, ", ") .. "}"
+    end
+    return t .. ":" .. tostring(v)
+  end
+  local function argstr(a)
+    local parts = {}
+    for i = 1, math.min(a.n or 0, 8) do parts[#parts + 1] = short(a[i]) end
+    return table.concat(parts, " | ")
+  end
+  local function myRoot()
+    local ch = TLG.LP.Character
+    local r = ch and ch:FindFirstChild("HumanoidRootPart")
+    return r and r.Position
+  end
+
   -- convierte los argumentos grabados en una plantilla (marca enemigos y posiciones)
   local function build(v, depth, st)
     local t = typeof(v)
@@ -2401,12 +2428,12 @@ do
         return {__ztb=true, __t="part", name=v.Name}
       end
       return v
-    elseif t == "Vector3" and st.wantPos and v.Magnitude > 5 then
+    elseif t == "Vector3" and st.wantPos and st.root and (v - st.root).Magnitude <= 150 then
       st.pos = true
       return {__ztb=true, __t="pos"}
-    elseif t == "CFrame" and st.wantPos then
+    elseif t == "CFrame" and st.wantPos and st.root and (v.Position - st.root).Magnitude <= 150 then
       st.pos = true
-      return {__ztb=true, __t="cf"}
+      return {__ztb=true, __t="cf", cf=v}
     elseif t == "table" and depth < 3 then
       local c = {}
       for k, x in pairs(v) do c[k] = build(x, depth + 1, st) end
@@ -2416,11 +2443,11 @@ do
   end
 
   local function makeTemplate(packed)
-    local st = {target=false, pos=false, wantPos=false}
+    local st = {target=false, pos=false, wantPos=false, root=myRoot()}
     local tm = {n=packed.n}
     for i = 1, packed.n do tm[i] = build(packed[i], 0, st) end
     if not st.target then
-      st = {target=false, pos=false, wantPos=true}
+      st = {target=false, pos=false, wantPos=true, root=myRoot()}
       tm = {n=packed.n}
       for i = 1, packed.n do tm[i] = build(packed[i], 0, st) end
     end
@@ -2436,7 +2463,7 @@ do
         elseif v.__t == "model" then return model
         elseif v.__t == "part" then return model:FindFirstChild(v.name, true) or root
         elseif v.__t == "pos" then return root and root.Position
-        elseif v.__t == "cf" then return root and root.CFrame end
+        elseif v.__t == "cf" then return root and (v.cf and (CFrame.new(root.Position) * (v.cf - v.cf.Position)) or root.CFrame) end
         return nil
       end
       if depth > 3 then return v end
@@ -2471,6 +2498,7 @@ do
               end
               e.n = e.n + 1
               e.tmpl, e.st = makeTemplate(packed)
+              e.argstr = argstr(packed)
             end)
           end
         end
@@ -2496,8 +2524,9 @@ do
     local lines = {"[ZTB] Remotes grabados:"}
     for _, k in ipairs(REC.Order) do
       local e = REC.Log[k]
-      lines[#lines + 1] = string.format("  x%d  score=%d  target=%s  %s",
-        e.n, score(e), tostring(e.st and e.st.target), k)
+      lines[#lines + 1] = string.format("  x%d  score=%d  target=%s pos=%s  %s",
+        e.n, score(e), tostring(e.st and e.st.target), tostring(e.st and e.st.pos), k)
+      lines[#lines + 1] = "      args: " .. tostring(e.argstr)
     end
     local txt = table.concat(lines, "\n")
     print(txt)
@@ -4168,7 +4197,7 @@ local V9ok, V9err = pcall(function()
 
   
 --==================================================
--- VISUAL SKILL SPEED V9.9
+-- VISUAL SKILL SPEED V10.0
 -- Visual/local animation speed only.
 -- No Tool:Activate(), no auto-clicking, no attack automation.
 --==================================================
@@ -4710,7 +4739,7 @@ WTx.Size = UDim2.new(1,-56,1,0)
 WTx.Position = UDim2.new(0,28,0,0)
 WTx.BackgroundTransparency = 1
 WTx.Font = Enum.Font.GothamBold
-WTx.Text = "ZTB HUB V9.9"
+WTx.Text = "ZTB HUB V10.0"
 WTx.TextSize = 9; WTx.TextColor3 = C.Wh
 WTx.TextXAlignment = Enum.TextXAlignment.Left
 WTx.ZIndex = 51
@@ -5326,7 +5355,7 @@ task.spawn(function()
     t2.Font = Enum.Font.Gotham
     t2.TextSize = 14
     t2.TextColor3 = C.Gr
-    t2.Text = "Meme Sea • V9.9"
+    t2.Text = "Meme Sea • V10.0"
     t2.TextTransparency = 1
     t2.ZIndex = 501
     local ti = TweenInfo.new(0.45)
@@ -5348,6 +5377,6 @@ pcall(function()
     {Size = W_S, Position = W_P}):Play()
 end)
 task.wait(0.9)
-TLG.PNotif("👑 ZTB HUB V9.9", "💀 Ghost Hitbox + Fly Boost", C.Yel)
+TLG.PNotif("👑 ZTB HUB V10.0", "💀 Ghost Hitbox + Fly Boost", C.Yel)
 
-print("[ZTB HUB V9.9] 💀 Cargado")
+print("[ZTB HUB V10.0] 💀 Cargado")
